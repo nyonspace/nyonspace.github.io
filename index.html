@@ -1,0 +1,1783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>nyon.space</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        /* Grundlegendes Reset und Design */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        body {
+            background-color: #000000;
+            color: #ffffff;
+            font-family: 'Orbitron', sans-serif;
+            overflow: hidden; 
+            width: 100vw;
+            height: 100vh;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; 
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+        }
+
+        .hud {
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.2rem;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        .health-bar {
+            color: #ffffff;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+            font-size: 2rem; 
+        }
+
+        .combo-center {
+            position: absolute;
+            top: 10px; 
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 2.5rem; 
+            font-weight: 900;
+            pointer-events: none;
+            transition: color 0.3s, text-shadow 0.3s, opacity 0.3s ease;
+            z-index: 5;
+            text-align: center;
+        }
+
+        .active-ability-ui {
+            position: absolute;
+            top: 65px; 
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            font-size: 0.85rem; 
+            color: #888888;
+            cursor: pointer;
+            padding: 4px 10px;
+            border: 1px solid transparent;
+            border-radius: 5px;
+            transition: all 0.2s, opacity 0.3s ease;
+            z-index: 10;
+        }
+        .active-ability-ui.ready {
+            color: #ffffff;
+            border-color: #ffffff;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+        }
+
+        .timers-ui {
+            position: absolute;
+            top: 100px; 
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 4px; 
+            pointer-events: none;
+            z-index: 10;
+            transition: opacity 0.3s ease;
+        }
+        .timer-item {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 3px 12px; 
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            font-size: 0.8rem; 
+            text-align: center;
+        }
+
+        .progress-container {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            max-width: 500px;
+            height: 18px; 
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 9px;
+            overflow: hidden;
+            z-index: 10;
+            transition: opacity 0.3s ease;
+            box-shadow: 0 0 10px rgba(255,255,255,0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .progress-fill {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 0%;
+            background: #ffffff;
+            box-shadow: 0 0 15px #ffffff, 0 0 30px #ffffff; 
+            transition: width 0.3s ease-out;
+            z-index: 1;
+        }
+        .progress-text {
+            position: relative;
+            z-index: 2;
+            font-size: 0.75rem;
+            color: #ffffff; 
+            font-weight: 900;
+            letter-spacing: 2px;
+            text-shadow: 0 0 4px #000, 0 0 2px #000;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        .next-boss-ui {
+            position: absolute;
+            bottom: 25px;
+            left: 20px;
+            font-size: 1rem;
+            font-weight: bold;
+            color: #ff3333;
+            text-shadow: 0 0 10px #ff3333;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 10;
+        }
+
+        .menu-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.85);
+            padding: 40px;
+            border-radius: 15px;
+            text-align: center;
+            border: 2px solid #ffffff;
+            box-shadow: 0 0 30px rgba(255, 255, 255, 0.2), inset 0 0 20px rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            pointer-events: auto; 
+            transition: opacity 0.3s ease;
+        }
+
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            color: #ffffff;
+            text-shadow: 0 0 20px #ffffff;
+            margin-bottom: 10px;
+        }
+
+        p {
+            color: #cccccc;
+            margin-bottom: 30px;
+            font-family: sans-serif;
+            line-height: 1.5;
+        }
+
+        .score-display {
+            font-size: 2rem;
+            margin: 20px 0;
+            color: #ffffff;
+        }
+
+        .highscore-display {
+            font-size: 1.2rem;
+            color: #ffffff;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+            margin-bottom: 20px;
+        }
+
+        .button-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        button {
+            background: transparent;
+            color: #ffffff;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: bold;
+            border: 2px solid #ffffff;
+            border-radius: 30px;
+            cursor: pointer;
+            text-transform: uppercase;
+            transition: all 0.2s;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
+        }
+
+        button:hover {
+            background: #ffffff;
+            color: #000000;
+            box-shadow: 0 0 30px rgba(255, 255, 255, 0.8);
+        }
+
+        #startBtn {
+            font-size: 1.5rem;
+            padding: 15px 40px;
+            width: 100%;
+            max-width: 300px;
+        }
+
+        #tutorialBtn {
+            font-size: 1rem;
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.4);
+            color: #cccccc;
+            box-shadow: none;
+        }
+
+        #tutorialBtn:hover {
+            background: #ffffff;
+            color: #000000;
+            border-color: #ffffff;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+        }
+
+        #upgradeMenu {
+            z-index: 100;
+            width: 80%;
+            max-width: 600px;
+        }
+        .upgrade-options {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+            justify-content: center;
+        }
+        .upgrade-card {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid #ffffff;
+            border-radius: 10px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .upgrade-card:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(255, 255, 255, 0.4);
+        }
+        .upgrade-card h3 {
+            color: #ffffff;
+            margin-bottom: 10px;
+        }
+        
+        .rarity-label {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        #tutorialMenu {
+            max-height: 85vh;
+            overflow-y: auto;
+            width: 90%;
+            max-width: 700px;
+            text-align: left;
+        }
+        #tutorialMenu h3 {
+            margin-top: 25px;
+            margin-bottom: 10px;
+            color: #ffffff;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+            font-size: 1.2rem;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+            padding-bottom: 5px;
+        }
+        #tutorialMenu p {
+            margin-bottom: 15px;
+            font-size: 0.95rem;
+        }
+        .tutorial-upgrade-item {
+            margin-bottom: 10px;
+            padding: 10px 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 5px;
+        }
+        #tutorialMenu::-webkit-scrollbar {
+            width: 8px;
+        }
+        #tutorialMenu::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05); 
+            border-radius: 4px;
+        }
+        #tutorialMenu::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3); 
+            border-radius: 4px;
+        }
+
+        @media (max-width: 600px) {
+            h1 { font-size: 1.8rem; }
+            #startBtn { font-size: 1.2rem; padding: 12px 25px; }
+            .menu-container { width: 90%; padding: 20px; }
+            .upgrade-options { flex-direction: column; }
+            .next-boss-ui { font-size: 0.8rem; bottom: 15px; left: 15px; }
+            .progress-container { bottom: 45px; } 
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Die Zeichenfläche für das Spiel -->
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- Die HTML Benutzeroberfläche -->
+    <div id="ui-layer">
+        <div class="hud" id="hud" style="opacity: 0;">
+            <div style="display: flex; flex-direction: column; gap: 5px;">
+                <div>SCORE: <span id="score">0.0</span></div>
+                <div id="shieldPercentContainer" style="color: #ffffff; text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);">SHIELD: <span id="shieldPercentUI">33.3</span>%</div>
+            </div>
+            
+            <div class="health-bar" id="health" style="text-align: right;">♥♥♥</div>
+        </div>
+        
+        <!-- Großer zentrierter Combo Multiplier -->
+        <div id="comboUI" class="combo-center" style="opacity: 0; color: #ffffff; text-shadow: 0 0 10px #ffffff;">x1.0</div>
+
+        <!-- Aktive Fähigkeit (Klickbar für Mobile) -->
+        <div id="activeAbilityUI" class="active-ability-ui" onclick="useActiveAbility()" style="opacity: 0;">
+            [SPACE] No Ability
+        </div>
+
+        <!-- Container für zeitbegrenzte Effekte & HP -->
+        <div id="activeTimers" class="timers-ui"></div>
+        
+        <!-- Progress Bar für nächstes Upgrade -->
+        <div class="progress-container" id="progressBarContainer" style="opacity: 0;">
+            <div class="progress-fill" id="progressBarFill"></div>
+            <div class="progress-text">NEXT UPGRADE</div>
+        </div>
+
+        <!-- Next Boss Anzeige (Unten Links) -->
+        <div id="nextBossUI" class="next-boss-ui">
+            NEXT BOSS IN: <span id="nextBossScoreUI">1000.0</span>
+        </div>
+    </div>
+
+    <!-- Start / Game Over Menü -->
+    <div id="startMenu" class="menu-container">
+        <h1 id="menuTitle">nyon.space</h1>
+        <p id="menuDesc">Move your mouse (or touch) to rotate the shield.<br>Protect the core from anomalies!</p>
+        
+        <div id="scoreBoard" class="hidden">
+            <div class="score-display">Score: <span id="finalScore">0.0</span></div>
+        </div>
+        
+        <div class="highscore-display">Highscore: <span id="highScoreText">0.0</span></div>
+        
+        <div class="button-group">
+            <button id="startBtn" onclick="startGame()">Start System</button>
+            <button id="tutorialBtn" onclick="showTutorial()">Tutorial & Info</button>
+        </div>
+    </div>
+
+    <!-- Tutorial Menü -->
+    <div id="tutorialMenu" class="menu-container hidden">
+        <h1 style="text-align: center;">SYSTEM DATABASE</h1>
+
+        <h3>1. PROGRESSION, UPGRADES & BOSSES</h3>
+        <p>First upgrade at <strong>10 points</strong>. Requirements scale exponentially!
+        <br><br>⚠️ <strong>BOSS ANOMALIES</strong> appear at <strong>1000, 2500, 5000, and 15000 points</strong> (and every 10k after).
+        <br>Defeating a Boss grants <strong>3 Free Upgrades</strong>. However, defeating Boss 3 (5k) and Boss 4 (15k) allows you to pick an <strong>Additional Specialization Class</strong>!
+        <br><br><em>Bosses bounce off your shield and walls, getting faster. EMPs deal 1 damage to them. If a Boss hits your core, it's INSTANT GAME OVER!</em></p>
+        
+        <h3>2. WARNING: SHIELD DEGRADATION</h3>
+        <p>Attention! With <strong>every blocked enemy</strong>, your shield loses <strong>0.2%</strong> of its width due to kinetic impact (Shrinks down to a minimum of 20%). You must maintain it with shield upgrades!</p>
+
+        <h3>3. ANOMALIES (ENEMIES)</h3>
+        <p style="line-height: 1.8;">
+            <span style="color: #ffffff; text-shadow: 0 0 5px #fff;">● <strong>White (Common):</strong></span> 1 Damage, 1 Point<br>
+            <span style="color: #c0c0c0; text-shadow: 0 0 5px #c0c0c0;">● <strong>Silver (Rare):</strong></span> 2 Damage, 10 Points<br>
+            <span style="color: #ffcc00; text-shadow: 0 0 5px #ffcc00;">● <strong>Gold (Extremely Rare):</strong></span> 3 Damage, 100 Points!
+        </p>
+
+        <h3>4. COMBO SYSTEM</h3>
+        <p>Every blocked anomaly grants <strong>+0.05x Combo Multiplier</strong>. The multiplier boosts your points massively. Taking core damage <strong>resets the combo</strong>!</p>
+
+        <h3>5. SPECIALIZATION CLASSES</h3>
+        <p style="line-height: 1.8;">
+            <span style="color: #ff3333; text-shadow: 0 0 5px #ff3333;">● <strong>EMP SPECIALIST:</strong></span> Auto-EMP every 10s (Upgrades reduce to 2s). Auto-EMPs give +0.5 Combo!<br>
+            <span style="color: #ff3333; text-shadow: 0 0 5px #ff3333;">● <strong>SHIELD BASTION:</strong></span> Max Shield increased to 80%. Auto-Regen every 1.5s. Shield takes only 0.1% degradation dmg. Blocks give double Combo (+0.1)!<br>
+            <span style="color: #ff3333; text-shadow: 0 0 5px #ff3333;">● <strong>COMBAT MEDIC:</strong></span> Auto-Heals or adds 1 life every 10s (Upgrades reduce to 2s). Extra hearts protect your Combo from resetting!
+        </p>
+
+        <div style="text-align: center; margin-top: 30px;">
+            <button id="startBtn" onclick="hideTutorial()" style="width: auto; padding: 10px 20px; font-size: 1rem;">Back to Menu</button>
+        </div>
+    </div>
+
+    <!-- Upgrade Menü -->
+    <div id="upgradeMenu" class="menu-container hidden">
+        <h1 style="color: #ffcc00; text-shadow: 0 0 20px #ffcc00;">SYSTEM UPGRADE</h1>
+        <p>Choose an enhancement for your core:</p>
+        
+        <!-- Aktuelle Stats im Upgrade Menü -->
+        <div id="upgradeStats" style="margin-bottom: 20px; font-size: 1.2rem; display: flex; justify-content: center; gap: 30px;">
+            <div id="upgradeShieldContainer">SHIELD: <span id="upgradeShieldText">100.0</span>%</div>
+            <div id="upgradeHealthText" style="color: #ffffff; text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);">♥♥♥</div>
+        </div>
+
+        <div class="upgrade-options" id="upgradeOptions">
+            <!-- Buttons werden per JS generiert -->
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 🔧 BALANCING & CONFIGURATION (Hier alles anpassen!)
+        // ==========================================
+        const CONFIG = {
+            // --- SPIELER & KERN ---
+            START_MAX_HEALTH: 3,
+
+            // --- SCHILD ---
+            SHIELD_START_ARC: Math.PI / 1.5,       // Start-Größe des Schildes (ca. 33% des Kreises)
+            SHIELD_MAX_ARC_NORMAL: Math.PI * 1.2,  // Normales Maximum (60% des Kreises)
+            SHIELD_MAX_ARC_CLASS: Math.PI * 1.6,   // Maximum für Schild-Klasse (80% des Kreises)
+            SHIELD_MIN_ARC_RATIO: 0.2,             // Das Minimum ist 20% vom normalen Maximum
+            SHIELD_DEGRADATION_NORMAL: 0.998,      // 0.2% Verlust pro Treffer
+            SHIELD_DEGRADATION_CLASS: 0.999,       // 0.1% Verlust für Shield-Klasse
+
+            // --- UPGRADES & PROGRESSION ---
+            UPGRADE_SCORE_FIRST: 10,               // Punkte für das erste Upgrade
+            UPGRADE_STEP_START: 40,                // Wie viele Punkte für das 2. Upgrade nötig sind
+            UPGRADE_STEP_MULT: 1.3,                // Multiplikator für exponentielles Wachstum
+            UPGRADE_STEP_ADD: 20,                  // Flacher Wert der zum Upgrade-Abstand addiert wird
+            FREE_UPGRADES_BOSS: 3,                 // Gratis-Upgrades nach einem normalen Boss
+
+            // --- MULTIPLIKATOR (COMBO) ---
+            COMBO_BASE: 1.0,                       // Start-Multiplikator
+            COMBO_ADD_NORMAL: 0.05,                // +Combo pro normalem Hit
+            COMBO_ADD_SHIELD_CLASS: 0.1,           // +Combo pro Hit für Schild-Klasse (Das Doppelte)
+            COMBO_ADD_AUTO_EMP: 0.5,               // +Combo wenn Auto-EMP triggert
+
+            // --- GEGNER SPAWN & SCHWIERIGKEIT ---
+            SPAWN_RATE_START: 75,                  // Start-Frames zwischen Gegner-Spawns (höher = langsamer)
+            SPAWN_RATE_MIN: 8,                     // Absolutes Minimum für die Spawnrate (Maximaler Spam)
+            SPAWN_RATE_DECREASE: 0.4,              // Wie viel schneller die Spawn-Rate wird pro Spawn
+            ENEMY_SPEED_BASE: 1.2,                 // Startgeschwindigkeit der Kugeln
+            ENEMY_SPEED_SCALING: 0.0005,           // Wie stark die Kugeln mit dem Score schneller werden
+
+            // --- GEGNER TYPEN ---
+            ENEMY_NORMAL: { chance: 1.000, speedMult: 1.0, damage: 1, points: 1, radius: 8 }, 
+            ENEMY_SILVER: { chance: 0.050, speedMult: 0.6, damage: 2, points: 10, radius: 15 },
+            ENEMY_GOLD:   { chance: 0.003, speedMult: 0.35, damage: 3, points: 100, radius: 24 },
+
+            // --- BOSSE ---
+            BOSS_MILESTONES: [1000, 2500, 5000, 15000], // Punkte-Meilensteine für die Bosse
+            BOSS_ENDLESS_STEP: 10000,                   // Punkte-Abstand für Bosse nach dem letzten Meilenstein
+            BOSS_HP_PER_BOSS: 10,                       // Leben pro Boss-Kugel
+            BOSS_SPEED_START: 4.5,                      // Startgeschwindigkeit des Bosses
+            BOSS_SPEED_INCREASE: 0.9,                   // Speed-Plus pro Abpraller an Wand/Schild
+            BOSS_SPEED_MAX: 20,                         // Maximale Boss-Geschwindigkeit
+            BOSS_DMG_TWIN_SHIELD: 5,                    // HP-Schaden am Twin-Shield pro Boss-Hit
+            BOSS_DMG_SHIELD_PERCENT: 0.97,              // Zieht 3% des Hauptschilds pro Boss-Hit ab
+
+            // --- KLASSEN WERTE ---
+            EMP_COOLDOWNS: [10000, 8000, 6000, 4000, 2000],     // in ms
+            HEALER_COOLDOWNS: [10000, 8000, 6000, 4000, 2000],  // in ms
+            SHIELD_REGEN_TICK: 1500,                            // in ms
+            SHIELD_REGEN_RATES: [0.2, 0.65, 1.1, 1.55, 2.0]     // in % des Max Shields
+        };
+        // ==========================================
+
+
+        // --- 1. SETUP & VARIABLEN ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // UI Elemente
+        const uiHud = document.getElementById('hud');
+        const scoreEl = document.getElementById('score');
+        const comboUI = document.getElementById('comboUI');
+        const shieldPercentUI = document.getElementById('shieldPercentUI');
+        const shieldPercentContainer = document.getElementById('shieldPercentContainer');
+        const activeAbilityUI = document.getElementById('activeAbilityUI');
+        const healthEl = document.getElementById('health');
+        const startMenu = document.getElementById('startMenu');
+        const menuTitle = document.getElementById('menuTitle');
+        const menuDesc = document.getElementById('menuDesc');
+        const scoreBoard = document.getElementById('scoreBoard');
+        const finalScoreEl = document.getElementById('finalScore');
+        const highScoreTextEl = document.getElementById('highScoreText');
+        const startBtn = document.getElementById('startBtn');
+        const tutorialMenu = document.getElementById('tutorialMenu');
+        const upgradeMenu = document.getElementById('upgradeMenu');
+        const upgradeOptions = document.getElementById('upgradeOptions');
+
+        // Spiel-Status
+        let gameState = 'MENU'; // MENU, PLAYING, GAMEOVER, UPGRADE
+        let score = 0;
+        let baseComboMultiplier = CONFIG.COMBO_BASE; 
+        let comboMultiplier = CONFIG.COMBO_BASE;
+        let highscore = parseFloat(localStorage.getItem('neonCoreHighscore') || 0).toFixed(1);
+        highScoreTextEl.innerText = highscore;
+        let maxHealth = CONFIG.START_MAX_HEALTH;
+        let health = maxHealth;
+        let frames = 0;
+        let animationId;
+
+        // Roguelike Upgrade-Variablen
+        let lastUpgradeScore = 0; 
+        let nextUpgradeScore = CONFIG.UPGRADE_SCORE_FIRST;
+        let upgradeStep = CONFIG.UPGRADE_STEP_START; 
+        let globalSpeedMult = 1.0;
+        let invincibleUntil = 0;
+        let twinShieldHP = 0; 
+        let scoreMultiplierUntil = 0; 
+        let infiniteEMPUntil = 0; 
+        let wasInfinite = false;
+        let pendingFreeUpgrades = 0;
+
+        // Boss Fight System
+        let isBossFight = false;
+        let currentBossIndex = 0;
+        let bosses = [];
+
+        // Klassen System
+        let hasFirstClass = false;
+        let pendingClassSelection = false;
+        let activeClasses = {
+            EMP: { active: false, level: 0, timerElapsed: 0 },
+            SHIELD: { active: false, level: 0, timerElapsed: 0 },
+            HEALER: { active: false, level: 0, timerElapsed: 0 }
+        };
+
+        let lastFrameTime = 0;
+        let activeAbility = { name: "None", actionName: null, charges: 0, action: null };
+        let cx, cy;
+        let mouse = { x: 0, y: 0 };
+        let bgParticles = [];
+
+        // Spiel-Objekte
+        let enemies = [];
+        let particles = [];
+        let empShockwaves = []; 
+        
+        let spawnRate = CONFIG.SPAWN_RATE_START; 
+        let enemyBaseSpeed = CONFIG.ENEMY_SPEED_BASE; 
+
+        // Kern & Schild Setup
+        const BASE_MAX_HEALTH = CONFIG.START_MAX_HEALTH; 
+        const coreRadius = 30; 
+        const shieldRadius = 80;
+        let shieldAngle = 0; 
+        let maxShieldArc = CONFIG.SHIELD_MAX_ARC_NORMAL; 
+        let shieldArc = CONFIG.SHIELD_START_ARC; 
+        const MIN_SHIELD_ARC = CONFIG.SHIELD_MAX_ARC_NORMAL * CONFIG.SHIELD_MIN_ARC_RATIO; 
+
+        function getEffectiveMaxShieldArc() {
+            return (twinShieldHP > 0) ? (Math.PI * 0.9) : maxShieldArc;
+        }
+
+        function getNextBossThreshold() {
+            if (currentBossIndex < CONFIG.BOSS_MILESTONES.length) {
+                return CONFIG.BOSS_MILESTONES[currentBossIndex];
+            }
+            return CONFIG.BOSS_MILESTONES[CONFIG.BOSS_MILESTONES.length - 1] + (currentBossIndex - (CONFIG.BOSS_MILESTONES.length - 1)) * CONFIG.BOSS_ENDLESS_STEP;
+        }
+
+        const RARITY = {
+            COMMON: { name: 'Common', color: '#aaaaaa', bg: 'rgba(170, 170, 170, 0.1)', weight: 80 },
+            RARE: { name: 'Rare', color: '#00ccff', bg: 'rgba(0, 204, 255, 0.1)', weight: 40 },
+            EPIC: { name: 'Epic', color: '#aa00ff', bg: 'rgba(170, 0, 255, 0.1)', weight: 20 },
+            LEGENDARY: { name: 'Legendary', color: '#ffcc00', bg: 'rgba(255, 204, 0, 0.1)', weight: 10 },
+            CLASS: { name: 'Class Upgrade', color: '#ff3333', bg: 'rgba(255, 51, 51, 0.1)', weight: 30 }
+        };
+
+        const availableUpgrades = [
+            { id: 'shield_small', rarity: RARITY.COMMON, title: 'Shield Maintenance', desc: 'Restores 10% of Max Shield capacity.', apply: () => { shieldArc = Math.min(getEffectiveMaxShieldArc(), shieldArc + Math.PI/8); } },
+            { id: 'heal_1', rarity: RARITY.COMMON, title: 'Minor Repair', desc: 'Heals 1 lost life.', apply: () => { health = Math.min(maxHealth, health + 1); updateHealthUI(); } },
+            { id: 'score_boost', rarity: RARITY.COMMON, title: 'Data Cache', desc: 'Instantly grants +20 points.', apply: () => { score += 20; updateScoreUI(); } },
+            
+            { id: 'shield_med', rarity: RARITY.RARE, title: 'Shield Expansion', desc: 'Restores 16% of Max Shield capacity.', apply: () => { shieldArc = Math.min(getEffectiveMaxShieldArc(), shieldArc + Math.PI/5); } },
+            { id: 'slowmo', rarity: RARITY.RARE, title: 'Time Distortion', desc: 'Enemies are permanently 10% slower.', apply: () => { globalSpeedMult *= 0.90; } },
+            { id: 'active_emp_1', rarity: RARITY.RARE, title: 'EMP Charge', desc: '[ACTIVE] 1x Use: Destroys all enemies.', apply: () => { setActiveAbility('EMP', 'emp', 1, triggerEMP); } },
+            { id: 'active_inv_1', rarity: RARITY.RARE, title: 'Emergency Shield', desc: '[ACTIVE] 1x Use: Invincible for 5sec.', apply: () => { setActiveAbility('Shield', 'invincible', 1, () => { invincibleUntil = Date.now() + 5000; }); } },
+            { id: 'base_mult_up', rarity: RARITY.RARE, title: 'Combo Foundation', desc: 'Base & Current Multiplier increased by +0.5.', apply: () => { baseComboMultiplier += 0.5; comboMultiplier += 0.5; updateComboUI(); } },
+
+            { id: 'max_health', rarity: RARITY.EPIC, title: 'Core Overload', desc: '+1 Max Life & Full Heal.', apply: () => { maxHealth++; health = maxHealth; updateHealthUI(); } },
+            { id: 'heal_2', rarity: RARITY.EPIC, title: 'Major Repair', desc: 'Heals up to 2 lost lives.', apply: () => { health = Math.min(maxHealth, health + 2); updateHealthUI(); } },
+            { id: 'full_restore', rarity: RARITY.EPIC, title: 'System Restore', desc: 'Shield to 100% & heals 1 life.', apply: () => { shieldArc = getEffectiveMaxShieldArc(); health = Math.min(maxHealth, health + 1); updateHealthUI(); } },
+            { id: 'active_emp_3', rarity: RARITY.EPIC, title: 'Tactical EMP', desc: '[ACTIVE] 3x Use: Destroys all enemies.', apply: () => { setActiveAbility('EMP', 'emp', 3, triggerEMP); } },
+
+            { id: 'twin_shield', rarity: RARITY.LEGENDARY, title: 'Twin Shield', desc: 'Creates a second shield (100 HP).', apply: () => { twinShieldHP = 100; } },
+            { id: 'score_mult', rarity: RARITY.LEGENDARY, title: 'Score Multiplier', desc: 'Points count 4x for 20 seconds!', apply: () => { scoreMultiplierUntil = Date.now() + 20000; } },
+            { id: 'active_god_1', rarity: RARITY.LEGENDARY, title: 'Guardian Angel', desc: '[ACTIVE] 1x Use: 10sec Invincibility & Infinite EMPs!', apply: () => { setActiveAbility('Guardian', 'god', 1, () => { invincibleUntil = Date.now() + 10000; infiniteEMPUntil = Date.now() + 10000; triggerEMP(); }); } },
+            
+            // Klassen-Upgrades
+            { id: 'class_emp', rarity: RARITY.CLASS, title: 'EMP Overclock', desc: '[CLASS] Reduces Auto-EMP cooldown.', apply: () => { activeClasses.EMP.level++; } },
+            { id: 'class_shield', rarity: RARITY.CLASS, title: 'Shield Generator', desc: '[CLASS] Increases Auto-Regen rate.', apply: () => { activeClasses.SHIELD.level++; } },
+            { id: 'class_healer', rarity: RARITY.CLASS, title: 'Nanobot Swarm', desc: '[CLASS] Reduces Auto-Heal cooldown.', apply: () => { activeClasses.HEALER.level++; } }
+        ];
+
+        // --- 2. HILFSFUNKTIONEN ---
+
+        function setActiveAbility(name, actionName, charges, actionFn) {
+            if (activeAbility.actionName === actionName) {
+                activeAbility.charges += charges;
+            } else {
+                activeAbility = { name, actionName, charges, action: actionFn };
+            }
+            updateActiveAbilityUI();
+        }
+
+        function updateComboUI() {
+            comboUI.innerText = `x${comboMultiplier.toFixed(1)}`;
+            let color = '#ffffff'; // Normal (< 200%)
+            if (comboMultiplier >= 5.0) color = RARITY.CLASS.color; // Rot
+            else if (comboMultiplier >= 4.0) color = RARITY.LEGENDARY.color; // Gold
+            else if (comboMultiplier >= 3.0) color = RARITY.EPIC.color; // Violett
+            else if (comboMultiplier >= 2.0) color = RARITY.RARE.color; // Blau
+
+            comboUI.style.color = color;
+            comboUI.style.textShadow = `0 0 10px ${color}`;
+        }
+
+        function updateScoreUI() {
+            scoreEl.innerText = score.toFixed(1);
+            let nextThreshold = getNextBossThreshold();
+            let remainingToBoss = Math.max(0, nextThreshold - score);
+            document.getElementById('nextBossScoreUI').innerText = remainingToBoss.toFixed(1);
+        }
+
+        function triggerEMP(isAuto = false) {
+            let pointsGained = 0;
+            let baseMult = (Date.now() < scoreMultiplierUntil) ? 4 : 1;
+
+            if (isAuto && activeClasses.EMP.active) {
+                comboMultiplier += CONFIG.COMBO_ADD_AUTO_EMP;
+                updateComboUI();
+            }
+            
+            if (enemies.length > 0) {
+                enemies.forEach(e => {
+                    comboMultiplier += activeClasses.SHIELD.active ? CONFIG.COMBO_ADD_SHIELD_CLASS : CONFIG.COMBO_ADD_NORMAL; 
+                    let currentMult = comboMultiplier * baseMult;
+                    pointsGained += (e.points * currentMult);
+                    createExplosion(e.x, e.y, e.color, 15);
+                });
+                score += pointsGained;
+                updateScoreUI();
+                updateComboUI();
+                enemies = [];
+            }
+
+            if (isBossFight && bosses.length > 0) {
+                for (let i = bosses.length - 1; i >= 0; i--) {
+                    let b = bosses[i];
+                    b.hits++;
+                    createExplosion(b.x, b.y, '#ffffff', 30);
+                    if (b.hits >= b.maxHits) {
+                        createExplosion(b.x, b.y, '#ff3333', 100);
+                        createExplosion(b.x, b.y, '#ffcc00', 100);
+                        bosses.splice(i, 1);
+                    }
+                }
+                if (bosses.length === 0) {
+                    endBossFight();
+                }
+            }
+            
+            let colorRGB = '255, 255, 255';
+            if (Date.now() < infiniteEMPUntil) {
+                colorRGB = '255, 204, 0'; 
+            } else if (activeClasses.EMP.active) {
+                colorRGB = '255, 51, 51'; 
+            }
+
+            empShockwaves.push({ radius: coreRadius, colorRGB: colorRGB, alpha: 1.0 });
+
+            ctx.fillStyle = `rgba(${colorRGB}, 0.2)`;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function useActiveAbility() {
+            if (gameState !== 'PLAYING') return;
+
+            if (Date.now() < infiniteEMPUntil) {
+                triggerEMP();
+                return;
+            }
+
+            if (activeAbility.charges <= 0 || !activeAbility.action) return;
+            
+            activeAbility.action(); 
+            activeAbility.charges--;
+            updateActiveAbilityUI();
+        }
+
+        function updateActiveAbilityUI() {
+            if (activeAbility.charges > 0) {
+                activeAbilityUI.innerHTML = `[SPACE] ${activeAbility.name} (${activeAbility.charges}x)`;
+                activeAbilityUI.classList.add('ready');
+            } else {
+                activeAbilityUI.innerHTML = `[SPACE] Empty`;
+                activeAbilityUI.classList.remove('ready');
+                activeAbility.actionName = null;
+                activeAbility.action = null;
+            }
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault(); 
+                useActiveAbility();
+            }
+        });
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            cx = canvas.width / 2;
+            cy = canvas.height / 2;
+            if(gameState === 'MENU') {
+                mouse.x = cx;
+                mouse.y = cy - 100; 
+            }
+
+            bgParticles = [];
+            for(let i = 0; i < 75; i++) {
+                bgParticles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    size: Math.random() * 1.5 + 0.5,
+                    speed: Math.random() * 0.8 + 0.2
+                });
+            }
+        }
+        window.addEventListener('resize', resize);
+        
+        function updateMousePos(e) {
+            if (e.touches && e.touches.length > 0) {
+                mouse.x = e.touches[0].clientX;
+                mouse.y = e.touches[0].clientY;
+            } else {
+                mouse.x = e.clientX;
+                mouse.y = e.clientY;
+            }
+        }
+        window.addEventListener('mousemove', updateMousePos);
+        window.addEventListener('touchmove', updateMousePos, {passive: false});
+
+        function checkShieldBlock(shieldAng, objAng) {
+            let angleDiff = Math.abs(objAng - shieldAng);
+            if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
+            return angleDiff < shieldArc / 2 + 0.1;
+        }
+
+        // --- 3. KLASSEN FÜR SPIELOBJEKTE ---
+
+        class Boss {
+            constructor(maxHits, index, totalBosses) {
+                this.radius = 45;
+                this.speed = CONFIG.BOSS_SPEED_START;
+                this.hits = 0;
+                this.maxHits = maxHits;
+
+                let angle = (index / totalBosses) * Math.PI * 2;
+                let spawnDist = Math.max(canvas.width, canvas.height) / 2 + 100;
+                this.x = cx + Math.cos(angle) * spawnDist;
+                this.y = cy + Math.sin(angle) * spawnDist;
+                
+                let startAngle = angle + Math.PI + (Math.random() * 0.5 - 0.25);
+                this.vx = Math.cos(startAngle) * this.speed;
+                this.vy = Math.sin(startAngle) * this.speed;
+                
+                this.orbits = [
+                    { tilt: 0, phase: 0, speed: 0.05, color: '#ff1a1a' },
+                    { tilt: Math.PI / 3, phase: Math.PI/2, speed: 0.06, color: '#ff4d4d' },
+                    { tilt: -Math.PI / 3, phase: Math.PI, speed: 0.07, color: '#ff9999' }
+                ];
+                this.rx = 75; 
+                this.ry = 20; 
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+
+                let bounced = false;
+                
+                if (this.x - this.radius <= 0) { this.x = this.radius; this.vx *= -1; bounced = true; }
+                if (this.x + this.radius >= canvas.width) { this.x = canvas.width - this.radius; this.vx *= -1; bounced = true; }
+                if (this.y - this.radius <= 0 && this.vy < 0) { this.y = this.radius; this.vy *= -1; bounced = true; } 
+                if (this.y + this.radius >= canvas.height) { this.y = canvas.height - this.radius; this.vy *= -1; bounced = true; }
+
+                if (bounced) {
+                    this.increaseSpeed();
+                    createExplosion(this.x, this.y, '#ff3333', 15);
+                }
+
+                this.orbits.forEach(o => o.phase += o.speed);
+            }
+
+            increaseSpeed() {
+                this.speed = Math.min(this.speed + CONFIG.BOSS_SPEED_INCREASE, CONFIG.BOSS_SPEED_MAX); 
+                let currentSpeed = Math.hypot(this.vx, this.vy);
+                this.vx = (this.vx / currentSpeed) * this.speed;
+                this.vy = (this.vy / currentSpeed) * this.speed;
+            }
+
+            draw() {
+                let pulse = Math.sin(Date.now() / 150) * 5;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius + pulse, 0, Math.PI * 2);
+                ctx.fillStyle = '#1a0000';
+                ctx.strokeStyle = '#ff3333';
+                ctx.lineWidth = 4;
+                ctx.shadowBlur = 30;
+                ctx.shadowColor = '#ff3333';
+                ctx.fill();
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius * 0.5, 0, Math.PI * 2);
+                ctx.fillStyle = '#ff3333';
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = '#ff3333';
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = "900 24px Orbitron";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.shadowBlur = 5;
+                ctx.shadowColor = '#000000';
+                ctx.fillText((this.maxHits - this.hits).toString(), this.x, this.y);
+                ctx.shadowBlur = 0;
+
+                this.orbits.forEach(o => {
+                    ctx.beginPath();
+                    ctx.ellipse(this.x, this.y, this.rx, this.ry, o.tilt, 0, Math.PI * 2);
+                    ctx.strokeStyle = 'rgba(255, 51, 51, 0.2)';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+
+                    let lx = Math.cos(o.phase) * this.rx;
+                    let ly = Math.sin(o.phase) * this.ry;
+                    
+                    let ex = this.x + lx * Math.cos(o.tilt) - ly * Math.sin(o.tilt);
+                    let ey = this.y + lx * Math.sin(o.tilt) + ly * Math.cos(o.tilt);
+
+                    let depth = Math.sin(o.phase); 
+                    let eSize = 5 + depth * 3; 
+
+                    ctx.globalAlpha = depth < 0 ? 0.3 : 1.0;
+                    ctx.beginPath();
+                    ctx.arc(ex, ey, eSize, 0, Math.PI * 2);
+                    ctx.fillStyle = o.color;
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = o.color;
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                    ctx.globalAlpha = 1.0;
+                });
+            }
+        }
+
+        class Enemy {
+            constructor() {
+                let typeRand = Math.random();
+                if (typeRand < CONFIG.ENEMY_GOLD.chance) {
+                    this.type = 'gold';
+                    this.radius = CONFIG.ENEMY_GOLD.radius;
+                    this.speedMult = CONFIG.ENEMY_GOLD.speedMult; 
+                    this.color = '#ffcc00';
+                    this.damage = CONFIG.ENEMY_GOLD.damage;
+                    this.points = CONFIG.ENEMY_GOLD.points;
+                } else if (typeRand < CONFIG.ENEMY_SILVER.chance) {
+                    this.type = 'silver';
+                    this.radius = CONFIG.ENEMY_SILVER.radius;
+                    this.speedMult = CONFIG.ENEMY_SILVER.speedMult; 
+                    this.color = '#c0c0c0';
+                    this.damage = CONFIG.ENEMY_SILVER.damage;
+                    this.points = CONFIG.ENEMY_SILVER.points;
+                } else {
+                    this.type = 'normal';
+                    this.radius = CONFIG.ENEMY_NORMAL.radius;
+                    this.speedMult = CONFIG.ENEMY_NORMAL.speedMult;
+                    this.color = '#ffffff'; 
+                    this.damage = CONFIG.ENEMY_NORMAL.damage;
+                    this.points = CONFIG.ENEMY_NORMAL.points;
+                }
+
+                let angle = Math.random() * Math.PI * 2;
+                let spawnDist = Math.max(canvas.width, canvas.height) / 2 + 50;
+                this.x = cx + Math.cos(angle) * spawnDist;
+                this.y = cy + Math.sin(angle) * spawnDist;
+            
+                let currentBaseSpeed = (CONFIG.ENEMY_SPEED_BASE + (score * CONFIG.ENEMY_SPEED_SCALING)) * globalSpeedMult;
+                this.speed = currentBaseSpeed * this.speedMult;
+            
+                let dx = cx - this.x;
+                let dy = cy - this.y;
+                let distance = Math.sqrt(dx*dx + dy*dy);
+                this.vx = (dx / distance) * this.speed;
+                this.vy = (dy / distance) * this.speed;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = this.color;
+                ctx.fill();
+                ctx.shadowBlur = 0; 
+            }
+        }
+
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.radius = Math.random() * 3 + 1;
+                this.color = color;
+                
+                let angle = Math.random() * Math.PI * 2;
+                let velocity = Math.random() * 5 + 2;
+                this.vx = Math.cos(angle) * velocity;
+                this.vy = Math.sin(angle) * velocity;
+                
+                this.alpha = 1; 
+                this.decay = Math.random() * 0.03 + 0.01; 
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.alpha -= this.decay;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = this.alpha;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = this.color;
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // --- 4. ROGUELIKE UPGRADE & MENÜ SYSTEM ---
+
+        function getWeightedRandomUpgrades(count) {
+            let available = availableUpgrades.filter(u => {
+                let relativeShield = Math.max(0, Math.min(1, (shieldArc - MIN_SHIELD_ARC) / (getEffectiveMaxShieldArc() - MIN_SHIELD_ARC)));
+                
+                if ((u.id === 'shield_small' || u.id === 'shield_med') && relativeShield >= 0.99) {
+                    return false; 
+                }
+                if (u.id === 'full_restore' && relativeShield >= 0.99 && health >= maxHealth) {
+                    return false; 
+                }
+                if (u.id.startsWith('heal_') && health >= maxHealth) {
+                    return false;
+                }
+                
+                if (u.id.startsWith('class_')) {
+                    let cName = u.id.replace('class_', '').toUpperCase();
+                    if (!activeClasses[cName].active || activeClasses[cName].level >= 5) {
+                        return false; 
+                    }
+                }
+                return true;
+            });
+            
+            let selected = [];
+            for (let i = 0; i < count; i++) {
+                if (available.length === 0) break;
+                
+                let totalWeight = available.reduce((sum, u) => sum + u.rarity.weight, 0);
+                let rand = Math.random() * totalWeight;
+                let cumulative = 0;
+                
+                for (let j = 0; j < available.length; j++) {
+                    cumulative += available[j].rarity.weight;
+                    if (rand <= cumulative) {
+                        selected.push(available[j]);
+                        available.splice(j, 1); 
+                        break;
+                    }
+                }
+            }
+            return selected;
+        }
+
+        function updateUpgradeMenuStats() {
+            let minArc = MIN_SHIELD_ARC;
+            let maxArc = getEffectiveMaxShieldArc();
+            let relativeShield = Math.max(0, Math.min(1, (shieldArc - minArc) / (maxArc - minArc)));
+            let currentShieldPercent = (relativeShield * 100).toFixed(1);
+            
+            let shieldColor = activeClasses.SHIELD.active ? '#ff3333' : '#ffffff';
+            const shieldContainer = document.getElementById('upgradeShieldContainer');
+            document.getElementById('upgradeShieldText').innerText = currentShieldPercent;
+            shieldContainer.style.color = shieldColor;
+            shieldContainer.style.textShadow = `0 0 10px ${shieldColor}`;
+
+            let heartsHtml = '';
+            for(let i = 0; i < maxHealth; i++) {
+                let isFilled = i < health;
+                let isExtra = i >= BASE_MAX_HEALTH;
+                if (isFilled) {
+                    heartsHtml += (activeClasses.HEALER.active && isExtra) ? '<span style="color: #ff3333; text-shadow: 0 0 10px #ff3333;">♥</span>' : '<span>♥</span>';
+                } else {
+                    heartsHtml += (activeClasses.HEALER.active && isExtra) ? '<span style="color: #ff3333; text-shadow: 0 0 10px #ff3333;">♡</span>' : '<span>♡</span>';
+                }
+            }
+            document.getElementById('upgradeHealthText').innerHTML = heartsHtml;
+        }
+
+        function showUpgradeMenu() {
+            gameState = 'UPGRADE'; 
+            
+            let choices = getWeightedRandomUpgrades(3);
+            upgradeOptions.innerHTML = '';
+            choices.forEach(upgrade => {
+                let card = document.createElement('div');
+                card.className = 'upgrade-card';
+                card.style.borderColor = upgrade.rarity.color;
+                card.style.background = upgrade.rarity.bg;
+                card.onmouseover = () => { card.style.boxShadow = `0 5px 15px ${upgrade.rarity.color}`; card.style.transform = 'translateY(-5px)'; };
+                card.onmouseout = () => { card.style.boxShadow = 'none'; card.style.transform = 'none'; };
+
+                card.innerHTML = `
+                    <div class="rarity-label" style="color: ${upgrade.rarity.color};">${upgrade.rarity.name}</div>
+                    <h3 style="color: ${upgrade.rarity.color};">${upgrade.title}</h3>
+                    <p style="margin-bottom: 0; font-size: 0.9rem; color: #aaa;">${upgrade.desc}</p>
+                `;
+                card.onclick = () => selectUpgrade(upgrade);
+                upgradeOptions.appendChild(card);
+            });
+
+            document.querySelector('#upgradeMenu h1').innerText = "SYSTEM UPGRADE";
+            document.querySelector('#upgradeMenu h1').style.color = "#ffcc00";
+            document.querySelector('#upgradeMenu h1').style.textShadow = "0 0 20px #ffcc00";
+
+            updateUpgradeMenuStats(); 
+
+            upgradeMenu.classList.remove('hidden');
+            uiHud.style.opacity = '0';
+            document.getElementById('progressBarContainer').style.opacity = '0';
+            document.getElementById('comboUI').style.opacity = '0';
+            document.getElementById('activeAbilityUI').style.opacity = '0';
+            document.getElementById('activeTimers').style.opacity = '0';
+            document.getElementById('nextBossUI').style.opacity = '0';
+        }
+
+        function showClassSelectionMenu() {
+            gameState = 'UPGRADE'; 
+            
+            upgradeOptions.innerHTML = '';
+            let classes = [
+                { id: 'EMP', title: 'EMP SPECIALIST', desc: 'Auto-EMP every 10s. Upgrades reduce cooldown to 2s.', apply: () => { chooseClass('EMP'); } },
+                { id: 'SHIELD', title: 'SHIELD BASTION', desc: 'Max Shield increased to 80%. Auto-Regen every 1.5s.', apply: () => { chooseClass('SHIELD'); } },
+                { id: 'HEALER', title: 'COMBAT MEDIC', desc: 'Auto-Heals or adds 1 life every 10s. Upgrades reduce cooldown to 2s.', apply: () => { chooseClass('HEALER'); } }
+            ];
+
+            let availableClasses = classes.filter(c => !activeClasses[c.id].active);
+
+            availableClasses.forEach(c => {
+                let card = document.createElement('div');
+                card.className = 'upgrade-card';
+                card.style.borderColor = RARITY.CLASS.color;
+                card.style.background = RARITY.CLASS.bg;
+                card.onmouseover = () => { card.style.boxShadow = `0 5px 15px ${RARITY.CLASS.color}`; card.style.transform = 'translateY(-5px)'; };
+                card.onmouseout = () => { card.style.boxShadow = 'none'; card.style.transform = 'none'; };
+
+                card.innerHTML = `
+                    <div class="rarity-label" style="color: ${RARITY.CLASS.color};">CLASS SELECTION</div>
+                    <h3 style="color: ${RARITY.CLASS.color};">${c.title}</h3>
+                    <p style="margin-bottom: 0; font-size: 0.9rem; color: #aaa;">${c.desc}</p>
+                `;
+                card.onclick = () => {
+                    c.apply();
+                    enemies = []; 
+                    ctx.fillStyle = 'rgba(255, 51, 51, 0.4)';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    
+                    upgradeMenu.classList.add('hidden');
+                    uiHud.style.opacity = '1';
+                    document.getElementById('progressBarContainer').style.opacity = '1';
+                    document.getElementById('comboUI').style.opacity = '1';
+                    document.getElementById('activeAbilityUI').style.opacity = '1';
+                    document.getElementById('activeTimers').style.opacity = '1';
+                    document.getElementById('nextBossUI').style.opacity = '1';
+                    gameState = 'PLAYING';
+                };
+                upgradeOptions.appendChild(card);
+            });
+
+            document.querySelector('#upgradeMenu h1').innerText = "CHOOSE SPECIALIZATION";
+            document.querySelector('#upgradeMenu h1').style.color = RARITY.CLASS.color;
+            document.querySelector('#upgradeMenu h1').style.textShadow = `0 0 20px ${RARITY.CLASS.color}`;
+            
+            updateUpgradeMenuStats(); 
+
+            upgradeMenu.classList.remove('hidden');
+            uiHud.style.opacity = '0';
+            document.getElementById('progressBarContainer').style.opacity = '0';
+            document.getElementById('comboUI').style.opacity = '0';
+            document.getElementById('activeAbilityUI').style.opacity = '0';
+            document.getElementById('activeTimers').style.opacity = '0';
+            document.getElementById('nextBossUI').style.opacity = '0';
+        }
+
+        function chooseClass(cls) {
+            activeClasses[cls].active = true;
+            activeClasses[cls].level = 1;
+            activeClasses[cls].timerElapsed = 0; 
+            pendingClassSelection = false;
+            
+            if (cls === 'SHIELD') {
+                maxShieldArc = CONFIG.SHIELD_MAX_ARC_CLASS; 
+            }
+        }
+
+        function selectUpgrade(upgrade) {
+            upgrade.apply(); 
+
+            if (pendingFreeUpgrades > 0) {
+                pendingFreeUpgrades--;
+                if (pendingFreeUpgrades > 0) {
+                    showUpgradeMenu(); 
+                    return; 
+                }
+            } else {
+                lastUpgradeScore = nextUpgradeScore; 
+                nextUpgradeScore += upgradeStep;
+                upgradeStep = Math.floor(upgradeStep * CONFIG.UPGRADE_STEP_MULT) + CONFIG.UPGRADE_STEP_ADD; 
+            }
+
+            enemies = [];
+            
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            upgradeMenu.classList.add('hidden');
+            uiHud.style.opacity = '1';
+            document.getElementById('progressBarContainer').style.opacity = '1';
+            document.getElementById('comboUI').style.opacity = '1';
+            document.getElementById('activeAbilityUI').style.opacity = '1';
+            document.getElementById('activeTimers').style.opacity = '1';
+            document.getElementById('nextBossUI').style.opacity = '1';
+            gameState = 'PLAYING';
+        }
+
+        function endBossFight() {
+            isBossFight = false;
+            
+            if (currentBossIndex === 2 || currentBossIndex === 3) {
+                pendingClassSelection = true;
+            } else {
+                pendingFreeUpgrades = CONFIG.FREE_UPGRADES_BOSS;
+            }
+
+            currentBossIndex++;
+            updateScoreUI();
+            
+            if (pendingClassSelection) {
+                showClassSelectionMenu();
+            } else {
+                showUpgradeMenu();
+            }
+        }
+
+        function showTutorial() {
+            startMenu.classList.add('hidden');
+            tutorialMenu.classList.remove('hidden');
+            
+            const listContainer = document.getElementById('tutorialUpgradeList');
+            if (listContainer.children.length === 0) {
+                let sortedUpgrades = [...availableUpgrades].sort((a, b) => b.rarity.weight - a.rarity.weight);
+                
+                sortedUpgrades.forEach(u => {
+                    let item = document.createElement('div');
+                    item.className = 'tutorial-upgrade-item';
+                    item.style.borderLeft = `4px solid ${u.rarity.color}`;
+                    item.innerHTML = `
+                        <strong style="color: ${u.rarity.color}">${u.title} (${u.rarity.name})</strong><br>
+                        <span style="font-size: 0.85rem; color: #ccc;">${u.desc}</span>
+                    `;
+                    listContainer.appendChild(item);
+                });
+            }
+        }
+
+        function hideTutorial() {
+            tutorialMenu.classList.add('hidden');
+            startMenu.classList.remove('hidden');
+        }
+
+        // --- 5. SPIEL-LOGIK & RENDERING ---
+
+        function createExplosion(x, y, color, amount) {
+            for (let i = 0; i < amount; i++) {
+                particles.push(new Particle(x, y, color));
+            }
+        }
+
+        function drawCore() {
+            let pulse = Math.sin(Date.now() / 200) * 5;
+            let isInvincible = Date.now() < invincibleUntil;
+            let isGuardian = Date.now() < infiniteEMPUntil; 
+
+            let mainColor = isGuardian ? '#ffcc00' : '#ffffff'; 
+
+            ctx.beginPath();
+            ctx.arc(cx, cy, coreRadius + pulse, 0, Math.PI * 2);
+            ctx.fillStyle = '#000000';
+            ctx.strokeStyle = mainColor;
+            ctx.lineWidth = 4;
+            ctx.shadowBlur = 20 + pulse * 2;
+            ctx.shadowColor = mainColor;
+            ctx.fill();
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+            
+            ctx.beginPath();
+            ctx.arc(cx, cy, coreRadius * 0.5, 0, Math.PI * 2);
+            ctx.fillStyle = mainColor;
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = mainColor;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            if (isInvincible) {
+                ctx.beginPath();
+                ctx.arc(cx, cy, coreRadius + 20 + pulse, 0, Math.PI * 2);
+                ctx.strokeStyle = isGuardian ? 'rgba(255, 204, 0, 0.8)' : 'rgba(255, 255, 255, 0.8)';
+                ctx.setLineDash([5, 10]); 
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                ctx.setLineDash([]); 
+            }
+        }
+
+        function drawShield() {
+            shieldAngle = Math.atan2(mouse.y - cy, mouse.x - cx);
+            let shieldColor = activeClasses.SHIELD.active ? '#ff3333' : '#ffffff';
+
+            ctx.beginPath();
+            ctx.arc(cx, cy, shieldRadius, shieldAngle - shieldArc/2, shieldAngle + shieldArc/2);
+            ctx.strokeStyle = shieldColor;
+            ctx.lineWidth = 6;
+            ctx.lineCap = 'round';
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = shieldColor;
+            ctx.stroke();
+            
+            if (twinShieldHP > 0) {
+                let blinkOff = (twinShieldHP <= 10 && Math.floor(Date.now() / 150) % 2 === 0);
+                if (!blinkOff) {
+                    ctx.beginPath();
+                    let twinAngle = shieldAngle + Math.PI;
+                    ctx.arc(cx, cy, shieldRadius, twinAngle - shieldArc/2, twinAngle + shieldArc/2);
+                    ctx.strokeStyle = '#ffcc00'; 
+                    ctx.lineWidth = 6;
+                    ctx.lineCap = 'round';
+                    ctx.shadowColor = '#ffcc00'; 
+                    ctx.stroke();
+                }
+            }
+            ctx.shadowBlur = 0;
+        }
+
+        function updateHealthUI() {
+            let heartsHtml = '';
+            
+            for(let i = 0; i < maxHealth; i++) {
+                let isFilled = i < health;
+                let isExtra = i >= BASE_MAX_HEALTH;
+                
+                if (isFilled) {
+                    if (activeClasses.HEALER.active && isExtra) {
+                        heartsHtml += '<span style="color: #ff3333; text-shadow: 0 0 10px #ff3333;">♥</span>';
+                    } else {
+                        heartsHtml += '<span>♥</span>'; 
+                    }
+                } else {
+                    if (activeClasses.HEALER.active && isExtra) {
+                        heartsHtml += '<span style="color: #ff3333; text-shadow: 0 0 10px #ff3333;">♡</span>';
+                    } else {
+                        heartsHtml += '<span>♡</span>'; 
+                    }
+                }
+            }
+            healthEl.innerHTML = heartsHtml;
+        }
+
+        function animate() {
+            let now = Date.now();
+            let dt = lastFrameTime ? (now - lastFrameTime) : 0;
+            lastFrameTime = now;
+
+            if (gameState === 'PLAYING' && !isBossFight) {
+                for (let k in activeClasses) {
+                    if (activeClasses[k].active && activeClasses[k].level > 0) {
+                        activeClasses[k].timerElapsed += dt;
+                    }
+                }
+            }
+
+            if (gameState === 'PLAYING' && score >= getNextBossThreshold() && !isBossFight) {
+                isBossFight = true;
+                bosses = [];
+                let spawnCount = currentBossIndex + 1; 
+                for(let i=0; i<spawnCount; i++) {
+                    bosses.push(new Boss(CONFIG.BOSS_HP_PER_BOSS, i, spawnCount)); 
+                }
+                enemies = []; 
+                
+                ctx.fillStyle = 'rgba(255, 51, 51, 0.5)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            let timerHtml = '';
+            if (now < invincibleUntil) {
+                let sec = ((invincibleUntil - now) / 1000).toFixed(1);
+                timerHtml += `<div class="timer-item" style="color: #ffcc00; border-color: #ffcc00; text-shadow: 0 0 5px #ffcc00;">INVINCIBLE: ${sec}s</div>`;
+            }
+            if (now < scoreMultiplierUntil) {
+                let sec = ((scoreMultiplierUntil - now) / 1000).toFixed(1);
+                timerHtml += `<div class="timer-item" style="color: #00ccff; border-color: #00ccff; text-shadow: 0 0 5px #00ccff;">4X SCORE: ${sec}s</div>`;
+            }
+            if (twinShieldHP > 0) {
+                timerHtml += `<div class="timer-item" style="color: #ffffff;">TWIN SHIELD: ${twinShieldHP} HP</div>`;
+            }
+
+            let minArc = MIN_SHIELD_ARC;
+            let maxArc = getEffectiveMaxShieldArc();
+            let relativeShield = Math.max(0, Math.min(1, (shieldArc - minArc) / (maxArc - minArc)));
+            let currentShieldPercent = (relativeShield * 100).toFixed(1);
+            
+            shieldPercentUI.innerText = currentShieldPercent;
+            let currentShieldColor = activeClasses.SHIELD.active ? '#ff3333' : '#ffffff';
+            shieldPercentContainer.style.color = currentShieldColor;
+            shieldPercentContainer.style.textShadow = `0 0 10px ${currentShieldColor}`;
+
+            if (now < infiniteEMPUntil) {
+                activeAbilityUI.innerHTML = `[SPACE] EMP (∞)`;
+                activeAbilityUI.classList.add('ready');
+                activeAbilityUI.style.color = '#ffcc00';
+                activeAbilityUI.style.borderColor = '#ffcc00';
+                activeAbilityUI.style.textShadow = '0 0 10px rgba(255, 204, 0, 0.5)';
+                wasInfinite = true;
+            } else if (wasInfinite) {
+                wasInfinite = false;
+                activeAbilityUI.style.color = '';
+                activeAbilityUI.style.borderColor = '';
+                activeAbilityUI.style.textShadow = '';
+                updateActiveAbilityUI(); 
+            }
+
+            let progress = Math.max(0, Math.min(1, (score - lastUpgradeScore) / (nextUpgradeScore - lastUpgradeScore)));
+            document.getElementById('progressBarFill').style.width = (progress * 100) + '%';
+
+            if (!isBossFight) {
+                if (activeClasses.EMP.active && activeClasses.EMP.level > 0) {
+                    const cooldowns = CONFIG.EMP_COOLDOWNS; 
+                    let cd = cooldowns[activeClasses.EMP.level - 1];
+                    let sec = Math.max(0, (cd - activeClasses.EMP.timerElapsed) / 1000).toFixed(1);
+                    timerHtml += `<div class="timer-item" style="color: #ff3333; border-color: #ff3333; text-shadow: 0 0 5px #ff3333;">AUTO-EMP: ${sec}s (Lv.${activeClasses.EMP.level})</div>`;
+
+                    if (gameState === 'PLAYING' && activeClasses.EMP.timerElapsed >= cd) {
+                        triggerEMP(true); 
+                        activeClasses.EMP.timerElapsed -= cd; 
+                    }
+                }
+                if (activeClasses.HEALER.active && activeClasses.HEALER.level > 0) {
+                    const cooldowns = CONFIG.HEALER_COOLDOWNS; 
+                    let cd = cooldowns[activeClasses.HEALER.level - 1];
+                    let sec = Math.max(0, (cd - activeClasses.HEALER.timerElapsed) / 1000).toFixed(1);
+                    timerHtml += `<div class="timer-item" style="color: #ff3333; border-color: #ff3333; text-shadow: 0 0 5px #ff3333;">AUTO-HEAL: ${sec}s (Lv.${activeClasses.HEALER.level})</div>`;
+
+                    if (gameState === 'PLAYING' && activeClasses.HEALER.timerElapsed >= cd) {
+                        if (health < maxHealth) {
+                            health++; 
+                        } else {
+                            maxHealth++; 
+                            health++; 
+                        }
+                        updateHealthUI();
+                        activeClasses.HEALER.timerElapsed -= cd;
+                    }
+                }
+                if (activeClasses.SHIELD.active && activeClasses.SHIELD.level > 0) {
+                    const cd = CONFIG.SHIELD_REGEN_TICK; 
+                    const regenRates = CONFIG.SHIELD_REGEN_RATES; 
+                    let rate = regenRates[activeClasses.SHIELD.level - 1];
+                    let sec = Math.max(0, (cd - activeClasses.SHIELD.timerElapsed) / 1000).toFixed(1);
+                    timerHtml += `<div class="timer-item" style="color: #ff3333; border-color: #ff3333; text-shadow: 0 0 5px #ff3333;">SHIELD REGEN (${rate.toFixed(1)}%): ${sec}s (Lv.${activeClasses.SHIELD.level})</div>`;
+
+                    if (gameState === 'PLAYING' && activeClasses.SHIELD.timerElapsed >= cd) {
+                        let regenAmount = maxShieldArc * (rate / 100);
+                        shieldArc = Math.min(getEffectiveMaxShieldArc(), shieldArc + regenAmount);
+                        activeClasses.SHIELD.timerElapsed -= cd;
+                    }
+                }
+            }
+
+            document.getElementById('activeTimers').innerHTML = timerHtml;
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            bgParticles.forEach(p => {
+                p.y += p.speed;
+                if (p.y > canvas.height) { 
+                    p.y = 0; 
+                    p.x = Math.random() * canvas.width; 
+                }
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            shieldArc = Math.min(shieldArc, getEffectiveMaxShieldArc());
+
+            if (isBossFight) {
+                ctx.strokeStyle = 'rgba(255, 51, 51, 0.8)';
+                ctx.lineWidth = 10;
+                ctx.shadowBlur = 40;
+                ctx.shadowColor = '#ff3333';
+                ctx.strokeRect(5, 5, canvas.width - 10, canvas.height - 10);
+                ctx.shadowBlur = 0;
+            }
+
+            drawCore();
+            drawShield();
+
+            for (let i = empShockwaves.length - 1; i >= 0; i--) {
+                let wave = empShockwaves[i];
+                wave.radius += 20; 
+                wave.alpha -= 0.025; 
+
+                ctx.beginPath();
+                ctx.arc(cx, cy, wave.radius, 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(${wave.colorRGB}, ${wave.alpha})`;
+                ctx.lineWidth = 10;
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = `rgba(${wave.colorRGB}, ${wave.alpha})`;
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+
+                if (wave.alpha <= 0) {
+                    empShockwaves.splice(i, 1);
+                }
+            }
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.update();
+                p.draw();
+                if (p.alpha <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+
+            if (gameState === 'PLAYING') {
+                
+                if (isBossFight && bosses.length > 0) {
+                    for (let i = bosses.length - 1; i >= 0; i--) {
+                        let currentBoss = bosses[i];
+                        currentBoss.update();
+                        currentBoss.draw();
+
+                        let distToBoss = Math.hypot(currentBoss.x - cx, currentBoss.y - cy);
+                        
+                        if (distToBoss <= shieldRadius + currentBoss.radius && (distToBoss + currentBoss.speed) >= shieldRadius - currentBoss.radius) {
+                            let bossAngle = Math.atan2(currentBoss.y - cy, currentBoss.x - cx);
+                            
+                            let blockedByMain = checkShieldBlock(shieldAngle, bossAngle);
+                            let blockedByTwin = (twinShieldHP > 0 && checkShieldBlock(shieldAngle + Math.PI, bossAngle));
+
+                            if (blockedByMain || blockedByTwin) {
+                                currentBoss.hits++;
+                                createExplosion(currentBoss.x, currentBoss.y, '#ffffff', 30);
+                                
+                                currentBoss.x = cx + Math.cos(bossAngle) * (shieldRadius + currentBoss.radius + 5);
+                                currentBoss.y = cy + Math.sin(bossAngle) * (shieldRadius + currentBoss.radius + 5);
+
+                                currentBoss.vx = Math.cos(bossAngle) * currentBoss.speed;
+                                currentBoss.vy = Math.sin(bossAngle) * currentBoss.speed;
+                                currentBoss.increaseSpeed();
+
+                                if (!blockedByMain && blockedByTwin) {
+                                    twinShieldHP = Math.max(0, twinShieldHP - CONFIG.BOSS_DMG_TWIN_SHIELD); 
+                                }
+
+                                shieldArc = Math.max(MIN_SHIELD_ARC, shieldArc * CONFIG.BOSS_DMG_SHIELD_PERCENT); 
+
+                                ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                                if (currentBoss.hits >= currentBoss.maxHits) {
+                                    createExplosion(currentBoss.x, currentBoss.y, '#ff3333', 100);
+                                    createExplosion(currentBoss.x, currentBoss.y, '#ffcc00', 100);
+                                    bosses.splice(i, 1);
+                                }
+                            }
+                        }
+
+                        if (isBossFight && bosses[i] && Math.hypot(bosses[i].x - cx, bosses[i].y - cy) < coreRadius + bosses[i].radius) {
+                            health = 0;
+                            updateHealthUI();
+                            createExplosion(cx, cy, '#ff3333', 100);
+                            ctx.fillStyle = 'rgba(255, 51, 51, 0.9)';
+                            ctx.fillRect(0, 0, canvas.width, canvas.height);
+                            gameOver();
+                            break; 
+                        }
+                    }
+
+                    if (isBossFight && bosses.length === 0) {
+                        endBossFight();
+                    }
+
+                } else if (!isBossFight) {
+                    
+                    if (score >= 100 && !hasFirstClass) {
+                        hasFirstClass = true;
+                        showClassSelectionMenu();
+                    } else if (score >= nextUpgradeScore) {
+                        showUpgradeMenu();
+                    } else {
+                        if (frames % Math.max(CONFIG.SPAWN_RATE_MIN, Math.floor(spawnRate)) === 0) { 
+                            enemies.push(new Enemy());
+                            if (spawnRate > CONFIG.SPAWN_RATE_MIN) spawnRate -= CONFIG.SPAWN_RATE_DECREASE; 
+                        }
+
+                        for (let i = enemies.length - 1; i >= 0; i--) {
+                            let enemy = enemies[i];
+                            enemy.update();
+                            enemy.draw();
+
+                            let dist = Math.hypot(enemy.x - cx, enemy.y - cy);
+
+                            if (dist <= shieldRadius + enemy.radius && (dist + enemy.speed) >= shieldRadius - enemy.radius) {
+                                let enemyAngle = Math.atan2(enemy.y - cy, enemy.x - cx);
+                                
+                                let blockedByMain = checkShieldBlock(shieldAngle, enemyAngle);
+                                let blockedByTwin = (twinShieldHP > 0 && checkShieldBlock(shieldAngle + Math.PI, enemyAngle));
+
+                                if (blockedByMain || blockedByTwin) {
+                                    
+                                    comboMultiplier += activeClasses.SHIELD.active ? CONFIG.COMBO_ADD_SHIELD_CLASS : CONFIG.COMBO_ADD_NORMAL; 
+                                    updateComboUI();
+                                    
+                                    let currentMult = comboMultiplier * ((Date.now() < scoreMultiplierUntil) ? 4 : 1);
+                                    score += (enemy.points * currentMult);
+                                    updateScoreUI();
+                                    createExplosion(enemy.x, enemy.y, enemy.color, 15 * enemy.damage); 
+                                    enemies.splice(i, 1);
+
+                                    if (!blockedByMain && blockedByTwin) {
+                                        twinShieldHP--;
+                                    }
+
+                                    let degradation = activeClasses.SHIELD.active ? CONFIG.SHIELD_DEGRADATION_CLASS : CONFIG.SHIELD_DEGRADATION_NORMAL;
+                                    shieldArc = Math.max(MIN_SHIELD_ARC, shieldArc * degradation);
+
+                                    if (score >= 100 && !hasFirstClass) {
+                                        hasFirstClass = true;
+                                        showClassSelectionMenu();
+                                        break;
+                                    } else if (score >= nextUpgradeScore) {
+                                        showUpgradeMenu();
+                                        break; 
+                                    }
+                                    
+                                    continue; 
+                                }
+                            }
+
+                            if (dist < coreRadius + enemy.radius) {
+                                createExplosion(enemy.x, enemy.y, enemy.color, 30 * enemy.damage);
+                                enemies.splice(i, 1);
+
+                                if (Date.now() > invincibleUntil) {
+                                    let oldBaseHealth = Math.min(health, BASE_MAX_HEALTH);
+                                    
+                                    health -= enemy.damage;
+                                    updateHealthUI();
+                                    
+                                    let newBaseHealth = Math.min(Math.max(0, health), BASE_MAX_HEALTH);
+
+                                    let resetCombo = false;
+                                    if (activeClasses.HEALER.active) {
+                                        if (newBaseHealth < oldBaseHealth) resetCombo = true;
+                                    } else {
+                                        resetCombo = true;
+                                    }
+
+                                    if (resetCombo) {
+                                        comboMultiplier = baseComboMultiplier;
+                                        updateComboUI();
+                                    }
+                                    
+                                    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+                                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                                    if (health <= 0) {
+                                        gameOver();
+                                    }
+                                } else {
+                                    let isGuardian = Date.now() < infiniteEMPUntil;
+                                    ctx.fillStyle = isGuardian ? 'rgba(255, 204, 0, 0.5)' : 'rgba(255, 255, 255, 0.5)';
+                                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                                }
+                            }
+                        }
+                    }
+                }
+                frames++;
+            }
+
+            animationId = requestAnimationFrame(animate);
+        }
+
+        // --- 6. SPIEL-STEUERUNG (START / ENDE) ---
+
+        function startGame() {
+            gameState = 'PLAYING';
+            score = 0;
+            baseComboMultiplier = CONFIG.COMBO_BASE;
+            comboMultiplier = baseComboMultiplier;
+            maxHealth = CONFIG.START_MAX_HEALTH; 
+            health = maxHealth;
+            frames = 0;
+            spawnRate = CONFIG.SPAWN_RATE_START; 
+            enemies = [];
+            particles = [];
+            empShockwaves = [];
+            
+            lastUpgradeScore = 0;
+            nextUpgradeScore = CONFIG.UPGRADE_SCORE_FIRST;
+            upgradeStep = CONFIG.UPGRADE_STEP_START; 
+            globalSpeedMult = 1.0;
+            invincibleUntil = 0;
+            twinShieldHP = 0;
+            scoreMultiplierUntil = 0; 
+            infiniteEMPUntil = 0;
+            wasInfinite = false;
+            pendingFreeUpgrades = 0;
+            
+            isBossFight = false;
+            currentBossIndex = 0;
+            bosses = [];
+            
+            hasFirstClass = false;
+            pendingClassSelection = false;
+            activeClasses = {
+                EMP: { active: false, level: 0, timerElapsed: 0 },
+                SHIELD: { active: false, level: 0, timerElapsed: 0 },
+                HEALER: { active: false, level: 0, timerElapsed: 0 }
+            };
+
+            maxShieldArc = CONFIG.SHIELD_MAX_ARC_NORMAL; 
+            shieldArc = CONFIG.SHIELD_START_ARC;
+            activeAbility = { name: "None", actionName: null, charges: 0, action: null };
+            
+            updateScoreUI();
+            updateHealthUI();
+            updateActiveAbilityUI();
+            updateComboUI();
+            
+            startMenu.classList.add('hidden');
+            uiHud.style.opacity = '1';
+            document.getElementById('progressBarContainer').style.opacity = '1';
+            document.getElementById('comboUI').style.opacity = '1';
+            document.getElementById('activeAbilityUI').style.opacity = '1';
+            document.getElementById('activeTimers').style.opacity = '1';
+            document.getElementById('nextBossUI').style.opacity = '1';
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            lastFrameTime = Date.now();
+        }
+
+        function gameOver() {
+            gameState = 'GAMEOVER';
+            
+            if (score > parseFloat(highscore)) {
+                highscore = score.toFixed(1);
+                localStorage.setItem('neonCoreHighscore', highscore);
+                menuTitle.innerText = "NEW HIGHSCORE!";
+                menuTitle.style.color = "#ffffff";
+                menuTitle.style.textShadow = "0 0 20px #ffffff";
+            } else {
+                menuTitle.innerText = "SYSTEM FAILURE";
+                menuTitle.style.color = "#ff3333";
+                menuTitle.style.textShadow = "0 0 20px #ff3333";
+            }
+
+            highScoreTextEl.innerText = highscore;
+            finalScoreEl.innerText = score.toFixed(1);
+            menuDesc.innerText = "The core has been destroyed.";
+            
+            scoreBoard.classList.remove('hidden');
+            uiHud.style.opacity = '0';
+            document.getElementById('progressBarContainer').style.opacity = '0';
+            document.getElementById('comboUI').style.opacity = '0';
+            document.getElementById('activeAbilityUI').style.opacity = '0';
+            document.getElementById('activeTimers').style.opacity = '0';
+            document.getElementById('nextBossUI').style.opacity = '0';
+            startBtn.innerText = "Restart";
+            startMenu.classList.remove('hidden');
+        }
+
+        resize();
+        animate(); 
+
+    </script>
+</body>
+</html>
