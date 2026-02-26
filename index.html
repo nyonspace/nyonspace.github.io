@@ -29,6 +29,7 @@
             display: block;
             width: 100%;
             height: 100%;
+            touch-action: none; /* WICHTIG FÜR MOBILE: Verhindert Zoomen und Scrollen beim Wischen */
         }
 
         #ui-layer {
@@ -84,6 +85,7 @@
             border-radius: 5px;
             transition: all 0.2s, opacity 0.3s ease;
             z-index: 10;
+            pointer-events: auto; /* Erlaubt Klicks auf dieses Element */
         }
         .active-ability-ui.ready {
             color: #ffffff;
@@ -785,17 +787,38 @@
         }
         window.addEventListener('resize', resize);
         
+        // --- TOUCH & MOUSE EVENTS OPTIMIERT FÜR MOBILE ---
         function updateMousePos(e) {
             if (e.touches && e.touches.length > 0) {
                 mouse.x = e.touches[0].clientX;
                 mouse.y = e.touches[0].clientY;
-            } else {
+            } else if (e.clientX !== undefined) {
                 mouse.x = e.clientX;
                 mouse.y = e.clientY;
             }
         }
+
         window.addEventListener('mousemove', updateMousePos);
-        window.addEventListener('touchmove', updateMousePos, {passive: false});
+
+        // Touchstart: Reagiert sofort auf das erste Berühren und verhindert Scrollen auf dem Spielfeld
+        window.addEventListener('touchstart', (e) => {
+            if (e.target === canvas) {
+                e.preventDefault(); 
+            }
+            updateMousePos(e);
+        }, {passive: false});
+
+        // Touchmove: Folgt dem Finger und verhindert Wischen/Scrollen
+        window.addEventListener('touchmove', (e) => {
+            if (e.target === canvas) {
+                e.preventDefault(); 
+            }
+            updateMousePos(e);
+        }, {passive: false});
+
+        // Verhindere Rechtsklick-Menü / langes Drücken am Handy auf dem Canvas
+        canvas.addEventListener('contextmenu', e => e.preventDefault());
+
 
         function checkShieldBlock(shieldAng, objAng) {
             let angleDiff = Math.abs(objAng - shieldAng);
@@ -1237,7 +1260,7 @@
             tutorialMenu.classList.remove('hidden');
             
             const listContainer = document.getElementById('tutorialUpgradeList');
-            if (listContainer.children.length === 0) {
+            if (listContainer && listContainer.children.length === 0) {
                 let sortedUpgrades = [...availableUpgrades].sort((a, b) => b.rarity.weight - a.rarity.weight);
                 
                 sortedUpgrades.forEach(u => {
@@ -1781,5 +1804,4 @@
 
     </script>
 </body>
-
 </html>
