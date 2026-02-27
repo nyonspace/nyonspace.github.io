@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Core Defender</title>
+    <title>nyon.space</title>
+    <link rel="icon" type="image/png" href="nyonspace_favicon.png">
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
     
     <style>
@@ -417,7 +418,7 @@
         <p>First upgrade at <strong>10 points</strong>. Requirements scale exponentially!
         <br><br>⚠️ <strong>BOSS ANOMALIES</strong> appear at <strong>1000, 2500, 5000, and 15000 points</strong> (and every 10k after).
         <br>Defeating a Boss grants <strong>3 Free Upgrades</strong>. However, defeating Boss 3 (5k) and Boss 4 (15k) allows you to pick an <strong>Additional Specialization Class</strong>!
-        <br><br><em>Bosses bounce off your shield and walls, getting faster. EMPs deal 1 damage to them. If a Boss hits your core, it's INSTANT GAME OVER!</em></p>
+        <br><br><em>Bosses bounce off your shield and walls, getting faster. EMPs deal 1 damage to them. If a Boss hits your core, it's INSTANT GAME OVER! <strong>⚠️ WARNING: After 10 seconds, the boss arena will start shrinking, forcing a close-quarters battle!</strong></em></p>
         
         <h3>2. WARNING: SHIELD DEGRADATION</h3>
         <p>Attention! With <strong>every blocked enemy</strong>, your shield loses <strong>0.2%</strong> of its width due to kinetic impact (Shrinks down to a minimum of 20%). You must maintain it with shield upgrades!</p>
@@ -510,6 +511,10 @@
             BOSS_SPEED_MAX: 20,                         // Maximale Boss-Geschwindigkeit
             BOSS_DMG_TWIN_SHIELD: 5,                    // HP-Schaden am Twin-Shield pro Boss-Hit
             BOSS_DMG_SHIELD_PERCENT: 0.97,              // Zieht 3% des Hauptschilds pro Boss-Hit ab
+            BOSS_ARENA_SHRINK_DELAY: 10000,             // 10s Verzögerung, bevor die Arena schrumpft (in ms)
+            BOSS_ARENA_SHRINK_SPEED: 0.04,              // Geschwindigkeit des Schrumpfens (Pixel pro ms)
+            BOSS_ARENA_MIN_WIDTH: 350,                  // Minimale Breite der Boss-Arena
+            BOSS_ARENA_MIN_HEIGHT: 350,                 // Minimale Höhe der Boss-Arena
 
             // --- KLASSEN WERTE ---
             EMP_COOLDOWNS: [10000, 8000, 6000, 4000, 2000],     // in ms
@@ -572,6 +577,9 @@
         let isBossFight = false;
         let currentBossIndex = 0;
         let bosses = [];
+        let bossFightStartTime = 0;
+        let arenaMarginX = 5;
+        let arenaMarginY = 5;
 
         // Klassen System
         let hasFirstClass = false;
@@ -842,10 +850,27 @@
 
                 let bounced = false;
                 
-                if (this.x - this.radius <= 0) { this.x = this.radius; this.vx *= -1; bounced = true; }
-                if (this.x + this.radius >= canvas.width) { this.x = canvas.width - this.radius; this.vx *= -1; bounced = true; }
-                if (this.y - this.radius <= 0 && this.vy < 0) { this.y = this.radius; this.vy *= -1; bounced = true; } 
-                if (this.y + this.radius >= canvas.height) { this.y = canvas.height - this.radius; this.vy *= -1; bounced = true; }
+                // Bildschirmrand-Kollision (Bounce mit dynamisch schrumpfender Arena)
+                if (this.x - this.radius <= arenaMarginX) { 
+                    this.x = arenaMarginX + this.radius; 
+                    if (this.vx < 0) this.vx *= -1; 
+                    bounced = true; 
+                }
+                if (this.x + this.radius >= canvas.width - arenaMarginX) { 
+                    this.x = canvas.width - arenaMarginX - this.radius; 
+                    if (this.vx > 0) this.vx *= -1; 
+                    bounced = true; 
+                }
+                if (this.y - this.radius <= arenaMarginY) { 
+                    this.y = arenaMarginY + this.radius; 
+                    if (this.vy < 0) this.vy *= -1; 
+                    bounced = true; 
+                } 
+                if (this.y + this.radius >= canvas.height - arenaMarginY) { 
+                    this.y = canvas.height - arenaMarginY - this.radius; 
+                    if (this.vy > 0) this.vy *= -1; 
+                    bounced = true; 
+                }
 
                 if (bounced) {
                     this.increaseSpeed();
@@ -1380,6 +1405,9 @@
 
             if (gameState === 'PLAYING' && score >= getNextBossThreshold() && !isBossFight) {
                 isBossFight = true;
+                bossFightStartTime = Date.now();
+                arenaMarginX = 5;
+                arenaMarginY = 5;
                 bosses = [];
                 let spawnCount = currentBossIndex + 1; 
                 for(let i=0; i<spawnCount; i++) {
@@ -1389,6 +1417,21 @@
                 
                 ctx.fillStyle = 'rgba(255, 51, 51, 0.5)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            // Arena Schrumpf-Logik
+            if (isBossFight) {
+                let timeInBossFight = now - bossFightStartTime;
+                if (timeInBossFight > CONFIG.BOSS_ARENA_SHRINK_DELAY) {
+                    let maxMarginX = Math.max(5, (canvas.width - CONFIG.BOSS_ARENA_MIN_WIDTH) / 2);
+                    let maxMarginY = Math.max(5, (canvas.height - CONFIG.BOSS_ARENA_MIN_HEIGHT) / 2);
+                    
+                    if (arenaMarginX < maxMarginX) arenaMarginX += CONFIG.BOSS_ARENA_SHRINK_SPEED * dt;
+                    if (arenaMarginY < maxMarginY) arenaMarginY += CONFIG.BOSS_ARENA_SHRINK_SPEED * dt;
+                }
+            } else {
+                arenaMarginX = 5;
+                arenaMarginY = 5;
             }
 
             let timerHtml = '';
@@ -1504,8 +1547,15 @@
                 ctx.lineWidth = 10;
                 ctx.shadowBlur = 40;
                 ctx.shadowColor = '#ff3333';
-                ctx.strokeRect(5, 5, canvas.width - 10, canvas.height - 10);
+                ctx.strokeRect(arenaMarginX, arenaMarginY, canvas.width - 2 * arenaMarginX, canvas.height - 2 * arenaMarginY);
                 ctx.shadowBlur = 0;
+                
+                // Todeszone Overlay (Roter Schleier außerhalb der Arena)
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.15)';
+                ctx.fillRect(0, 0, canvas.width, arenaMarginY); // Oben
+                ctx.fillRect(0, canvas.height - arenaMarginY, canvas.width, arenaMarginY); // Unten
+                ctx.fillRect(0, arenaMarginY, arenaMarginX, canvas.height - 2 * arenaMarginY); // Links
+                ctx.fillRect(canvas.width - arenaMarginX, arenaMarginY, arenaMarginX, canvas.height - 2 * arenaMarginY); // Rechts
             }
 
             drawCore();
@@ -1732,6 +1782,9 @@
             isBossFight = false;
             currentBossIndex = 0;
             bosses = [];
+            bossFightStartTime = 0;
+            arenaMarginX = 5;
+            arenaMarginY = 5;
             
             hasFirstClass = false;
             pendingClassSelection = false;
