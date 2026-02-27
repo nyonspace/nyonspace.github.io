@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>nyon.space</title>
-    <link rel="icon" type="image/png" href="nyonspace_favicon.png">
+    <title>Neon Core Defender</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
     
     <style>
@@ -29,7 +28,6 @@
             display: block;
             width: 100%;
             height: 100%;
-            touch-action: none; /* WICHTIG FÜR MOBILE: Verhindert Zoomen und Scrollen beim Wischen */
         }
 
         #ui-layer {
@@ -85,7 +83,6 @@
             border-radius: 5px;
             transition: all 0.2s, opacity 0.3s ease;
             z-index: 10;
-            pointer-events: auto; /* Erlaubt Klicks auf dieses Element */
         }
         .active-ability-ui.ready {
             color: #ffffff;
@@ -278,9 +275,11 @@
             gap: 20px;
             margin-top: 20px;
             justify-content: center;
+            flex-wrap: wrap;
         }
         .upgrade-card {
             flex: 1;
+            min-width: 150px;
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid #ffffff;
             border-radius: 10px;
@@ -395,7 +394,7 @@
 
     <!-- Start / Game Over Menü -->
     <div id="startMenu" class="menu-container">
-        <h1 id="menuTitle">nyon.space</h1>
+        <h1 id="menuTitle">NEON CORE</h1>
         <p id="menuDesc">Move your mouse (or touch) to rotate the shield.<br>Protect the core from anomalies!</p>
         
         <div id="scoreBoard" class="hidden">
@@ -436,7 +435,7 @@
         <h3>5. SPECIALIZATION CLASSES</h3>
         <p style="line-height: 1.8;">
             <span style="color: #ff3333; text-shadow: 0 0 5px #ff3333;">● <strong>EMP SPECIALIST:</strong></span> Auto-EMP every 10s (Upgrades reduce to 2s). Auto-EMPs give +0.5 Combo!<br>
-            <span style="color: #ff3333; text-shadow: 0 0 5px #ff3333;">● <strong>SHIELD BASTION:</strong></span> Max Shield increased to 80%. Auto-Regen every 1.5s. Shield takes only 0.1% degradation dmg. Blocks give double Combo (+0.1)!<br>
+            <span style="color: #ff3333; text-shadow: 0 0 5px #ff3333;">● <strong>SHIELD BASTION:</strong></span> Max Shield increased to 80%. Auto-Regen every 1.5s. Shield takes only 0.1% degradation dmg. Blocks give double Combo (+0.1)! Bosses only deal 1% damage to your shield!<br>
             <span style="color: #ff3333; text-shadow: 0 0 5px #ff3333;">● <strong>COMBAT MEDIC:</strong></span> Auto-Heals or adds 1 life every 10s (Upgrades reduce to 2s). Extra hearts protect your Combo from resetting!
         </p>
 
@@ -491,7 +490,7 @@
             COMBO_ADD_AUTO_EMP: 0.5,               // +Combo wenn Auto-EMP triggert
 
             // --- GEGNER SPAWN & SCHWIERIGKEIT ---
-            SPAWN_RATE_START: 100,                  // Start-Frames zwischen Gegner-Spawns (höher = langsamer)
+            SPAWN_RATE_START: 100,                 // Start-Frames zwischen Gegner-Spawns (höher = langsamer)
             SPAWN_RATE_MIN: 8,                     // Absolutes Minimum für die Spawnrate (Maximaler Spam)
             SPAWN_RATE_DECREASE: 0.2,              // Wie viel schneller die Spawn-Rate wird pro Spawn
             ENEMY_SPEED_BASE: 1.2,                 // Startgeschwindigkeit der Kugeln
@@ -545,7 +544,7 @@
         const upgradeOptions = document.getElementById('upgradeOptions');
 
         // Spiel-Status
-        let gameState = 'MENU'; // MENU, PLAYING, GAMEOVER, UPGRADE
+        let gameState = 'MENU'; 
         let score = 0;
         let baseComboMultiplier = CONFIG.COMBO_BASE; 
         let comboMultiplier = CONFIG.COMBO_BASE;
@@ -562,6 +561,7 @@
         let upgradeStep = CONFIG.UPGRADE_STEP_START; 
         let globalSpeedMult = 1.0;
         let invincibleUntil = 0;
+        let slowmoActiveUntil = 0; // Neues Rare Upgrade
         let twinShieldHP = 0; 
         let scoreMultiplierUntil = 0; 
         let infiniteEMPUntil = 0; 
@@ -633,6 +633,7 @@
             { id: 'slowmo', rarity: RARITY.RARE, title: 'Time Distortion', desc: 'Enemies are permanently 10% slower.', apply: () => { globalSpeedMult *= 0.90; } },
             { id: 'active_emp_1', rarity: RARITY.RARE, title: 'EMP Charge', desc: '[ACTIVE] 1x Use: Destroys all enemies.', apply: () => { setActiveAbility('EMP', 'emp', 1, triggerEMP); } },
             { id: 'active_inv_1', rarity: RARITY.RARE, title: 'Emergency Shield', desc: '[ACTIVE] 1x Use: Invincible for 5sec.', apply: () => { setActiveAbility('Shield', 'invincible', 1, () => { invincibleUntil = Date.now() + 5000; }); } },
+            { id: 'active_slowmo_1', rarity: RARITY.RARE, title: 'Chrono Pulse', desc: '[ACTIVE] 1x Use: Slows enemies & bosses by 50% for 10s.', apply: () => { setActiveAbility('Chrono', 'chrono', 1, () => { slowmoActiveUntil = Date.now() + 10000; }); } },
             { id: 'base_mult_up', rarity: RARITY.RARE, title: 'Combo Foundation', desc: 'Base & Current Multiplier increased by +0.5.', apply: () => { baseComboMultiplier += 0.5; comboMultiplier += 0.5; updateComboUI(); } },
 
             { id: 'max_health', rarity: RARITY.EPIC, title: 'Core Overload', desc: '+1 Max Life & Full Heal.', apply: () => { maxHealth++; health = maxHealth; updateHealthUI(); } },
@@ -663,11 +664,11 @@
 
         function updateComboUI() {
             comboUI.innerText = `x${comboMultiplier.toFixed(1)}`;
-            let color = '#ffffff'; // Normal (< 200%)
-            if (comboMultiplier >= 5.0) color = RARITY.CLASS.color; // Rot
-            else if (comboMultiplier >= 4.0) color = RARITY.LEGENDARY.color; // Gold
-            else if (comboMultiplier >= 3.0) color = RARITY.EPIC.color; // Violett
-            else if (comboMultiplier >= 2.0) color = RARITY.RARE.color; // Blau
+            let color = '#ffffff'; 
+            if (comboMultiplier >= 5.0) color = RARITY.CLASS.color; 
+            else if (comboMultiplier >= 4.0) color = RARITY.LEGENDARY.color; 
+            else if (comboMultiplier >= 3.0) color = RARITY.EPIC.color; 
+            else if (comboMultiplier >= 2.0) color = RARITY.RARE.color; 
 
             comboUI.style.color = color;
             comboUI.style.textShadow = `0 0 10px ${color}`;
@@ -787,38 +788,17 @@
         }
         window.addEventListener('resize', resize);
         
-        // --- TOUCH & MOUSE EVENTS OPTIMIERT FÜR MOBILE ---
         function updateMousePos(e) {
             if (e.touches && e.touches.length > 0) {
                 mouse.x = e.touches[0].clientX;
                 mouse.y = e.touches[0].clientY;
-            } else if (e.clientX !== undefined) {
+            } else {
                 mouse.x = e.clientX;
                 mouse.y = e.clientY;
             }
         }
-
         window.addEventListener('mousemove', updateMousePos);
-
-        // Touchstart: Reagiert sofort auf das erste Berühren und verhindert Scrollen auf dem Spielfeld
-        window.addEventListener('touchstart', (e) => {
-            if (e.target === canvas) {
-                e.preventDefault(); 
-            }
-            updateMousePos(e);
-        }, {passive: false});
-
-        // Touchmove: Folgt dem Finger und verhindert Wischen/Scrollen
-        window.addEventListener('touchmove', (e) => {
-            if (e.target === canvas) {
-                e.preventDefault(); 
-            }
-            updateMousePos(e);
-        }, {passive: false});
-
-        // Verhindere Rechtsklick-Menü / langes Drücken am Handy auf dem Canvas
-        canvas.addEventListener('contextmenu', e => e.preventDefault());
-
+        window.addEventListener('touchmove', updateMousePos, {passive: false});
 
         function checkShieldBlock(shieldAng, objAng) {
             let angleDiff = Math.abs(objAng - shieldAng);
@@ -854,8 +834,11 @@
             }
 
             update() {
-                this.x += this.vx;
-                this.y += this.vy;
+                // CHRONO PULSE EFFECT
+                let timeSlowMult = (Date.now() < slowmoActiveUntil) ? 0.5 : 1.0;
+                
+                this.x += this.vx * timeSlowMult;
+                this.y += this.vy * timeSlowMult;
 
                 let bounced = false;
                 
@@ -869,7 +852,7 @@
                     createExplosion(this.x, this.y, '#ff3333', 15);
                 }
 
-                this.orbits.forEach(o => o.phase += o.speed);
+                this.orbits.forEach(o => o.phase += o.speed * timeSlowMult);
             }
 
             increaseSpeed() {
@@ -980,8 +963,10 @@
             }
 
             update() {
-                this.x += this.vx;
-                this.y += this.vy;
+                // CHRONO PULSE EFFECT
+                let timeSlowMult = (Date.now() < slowmoActiveUntil) ? 0.5 : 1.0;
+                this.x += this.vx * timeSlowMult;
+                this.y += this.vy * timeSlowMult;
             }
 
             draw() {
@@ -1203,6 +1188,7 @@
             
             if (cls === 'SHIELD') {
                 maxShieldArc = CONFIG.SHIELD_MAX_ARC_CLASS; 
+                shieldArc = getEffectiveMaxShieldArc(); // Sofortiger 100% Restore für die Schild-Klasse!
             }
         }
 
@@ -1260,7 +1246,7 @@
             tutorialMenu.classList.remove('hidden');
             
             const listContainer = document.getElementById('tutorialUpgradeList');
-            if (listContainer && listContainer.children.length === 0) {
+            if (listContainer.children.length === 0) {
                 let sortedUpgrades = [...availableUpgrades].sort((a, b) => b.rarity.weight - a.rarity.weight);
                 
                 sortedUpgrades.forEach(u => {
@@ -1413,6 +1399,10 @@
             if (now < scoreMultiplierUntil) {
                 let sec = ((scoreMultiplierUntil - now) / 1000).toFixed(1);
                 timerHtml += `<div class="timer-item" style="color: #00ccff; border-color: #00ccff; text-shadow: 0 0 5px #00ccff;">4X SCORE: ${sec}s</div>`;
+            }
+            if (now < slowmoActiveUntil) {
+                let sec = ((slowmoActiveUntil - now) / 1000).toFixed(1);
+                timerHtml += `<div class="timer-item" style="color: #00ffcc; border-color: #00ffcc; text-shadow: 0 0 5px #00ffcc;">CHRONO FIELD: ${sec}s</div>`;
             }
             if (twinShieldHP > 0) {
                 timerHtml += `<div class="timer-item" style="color: #ffffff;">TWIN SHIELD: ${twinShieldHP} HP</div>`;
@@ -1580,7 +1570,9 @@
                                     twinShieldHP = Math.max(0, twinShieldHP - CONFIG.BOSS_DMG_TWIN_SHIELD); 
                                 }
 
-                                shieldArc = Math.max(MIN_SHIELD_ARC, shieldArc * CONFIG.BOSS_DMG_SHIELD_PERCENT); 
+                                // 1% Schaden für die Schild-Klasse (0.99), sonst normal 3% aus der CONFIG
+                                let bossDmgMult = activeClasses.SHIELD.active ? 0.99 : CONFIG.BOSS_DMG_SHIELD_PERCENT;
+                                shieldArc = Math.max(MIN_SHIELD_ARC, shieldArc * bossDmgMult); 
 
                                 ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
                                 ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1730,6 +1722,7 @@
             upgradeStep = CONFIG.UPGRADE_STEP_START; 
             globalSpeedMult = 1.0;
             invincibleUntil = 0;
+            slowmoActiveUntil = 0; // Reset für Chrono Pulse
             twinShieldHP = 0;
             scoreMultiplierUntil = 0; 
             infiniteEMPUntil = 0;
@@ -1805,4 +1798,3 @@
     </script>
 </body>
 </html>
-
