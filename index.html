@@ -440,8 +440,11 @@
             <span style="color: #ff3333; text-shadow: 0 0 5px #ff3333;">● <strong>COMBAT MEDIC:</strong></span> Auto-Heals or adds 1 life every 10s (Upgrades reduce to 2s). Extra hearts protect your Combo from resetting!
         </p>
 
+        <h3>6. UPGRADE DATABASE</h3>
+        <div id="tutorialUpgradeList"></div>
+
         <div style="text-align: center; margin-top: 30px;">
-            <button id="startBtn" onclick="hideTutorial()" style="width: auto; padding: 10px 20px; font-size: 1rem;">Back to Menu</button>
+            <button id="tutorialBackBtn" onclick="hideTutorial()" style="width: auto; padding: 10px 20px; font-size: 1rem;">Back to Menu</button>
         </div>
     </div>
 
@@ -491,9 +494,11 @@
             COMBO_ADD_AUTO_EMP: 0.5,               // +Combo wenn Auto-EMP triggert
 
             // --- GEGNER SPAWN & SCHWIERIGKEIT ---
-            SPAWN_RATE_START: 100,                 // Start-Frames zwischen Gegner-Spawns (höher = langsamer)
+            // Spawn-Werte sind in "60-FPS-Frames" angegeben (100 = ca. 1.67s), laufen aber zeitbasiert
+            SPAWN_RATE_START: 100,                 // Start-Abstand zwischen Gegner-Spawns (höher = langsamer)
             SPAWN_RATE_MIN: 8,                     // Absolutes Minimum für die Spawnrate (Maximaler Spam)
             SPAWN_RATE_DECREASE: 0.2,              // Wie viel schneller die Spawn-Rate wird pro Spawn
+            MAX_FRAME_DT: 100,                     // Max. ms pro Frame (verhindert Sprünge nach Tab-Wechsel)
             ENEMY_SPEED_BASE: 1.2,                 // Startgeschwindigkeit der Kugeln
             ENEMY_SPEED_SCALING: 0.0001,           // Wie stark die Kugeln mit dem Score schneller werden
 
@@ -513,8 +518,8 @@
             BOSS_DMG_SHIELD_PERCENT: 0.97,              // Zieht 3% des Hauptschilds pro Boss-Hit ab
             BOSS_ARENA_SHRINK_DELAY: 10000,             // 10s Verzögerung, bevor die Arena schrumpft (in ms)
             BOSS_ARENA_SHRINK_SPEED: 0.04,              // Geschwindigkeit des Schrumpfens (Pixel pro ms)
-            BOSS_ARENA_MIN_WIDTH: 1000,                  // Minimale Breite der Boss-Arena
-            BOSS_ARENA_MIN_HEIGHT: 1000,                 // Minimale Höhe der Boss-Arena
+            BOSS_ARENA_MIN_RATIO: 0.5,                  // Arena schrumpft auf max. 50% der Bildschirmgröße
+            BOSS_ARENA_MIN_SIZE: 400,                   // ...aber nie kleiner als 400px (Breite/Höhe)
 
             // --- KLASSEN WERTE ---
             EMP_COOLDOWNS: [10000, 8000, 6000, 4000, 2000],     // in ms
@@ -557,7 +562,8 @@
         highScoreTextEl.innerText = highscore;
         let maxHealth = CONFIG.START_MAX_HEALTH;
         let health = maxHealth;
-        let frames = 0;
+        let spawnTimer = 0;       // ms seit dem letzten Spawn
+        let frameScale = 1.0;     // 1.0 bei 60 FPS, 0.5 bei 120 FPS usw. (für framerate-unabhängige Bewegung)
         let animationId;
 
         // Roguelike Upgrade-Variablen
@@ -843,8 +849,8 @@
 
             update() {
                 // CHRONO PULSE EFFECT
-                let timeSlowMult = (Date.now() < slowmoActiveUntil) ? 0.5 : 1.0;
-                
+                let timeSlowMult = ((Date.now() < slowmoActiveUntil) ? 0.5 : 1.0) * frameScale;
+
                 this.x += this.vx * timeSlowMult;
                 this.y += this.vy * timeSlowMult;
 
@@ -989,7 +995,7 @@
 
             update() {
                 // CHRONO PULSE EFFECT
-                let timeSlowMult = (Date.now() < slowmoActiveUntil) ? 0.5 : 1.0;
+                let timeSlowMult = ((Date.now() < slowmoActiveUntil) ? 0.5 : 1.0) * frameScale;
                 this.x += this.vx * timeSlowMult;
                 this.y += this.vy * timeSlowMult;
             }
@@ -1022,9 +1028,9 @@
             }
 
             update() {
-                this.x += this.vx;
-                this.y += this.vy;
-                this.alpha -= this.decay;
+                this.x += this.vx * frameScale;
+                this.y += this.vy * frameScale;
+                this.alpha -= this.decay * frameScale;
             }
 
             draw() {
@@ -1392,8 +1398,9 @@
 
         function animate() {
             let now = Date.now();
-            let dt = lastFrameTime ? (now - lastFrameTime) : 0;
+            let dt = lastFrameTime ? Math.min(now - lastFrameTime, CONFIG.MAX_FRAME_DT) : 0;
             lastFrameTime = now;
+            frameScale = dt / (1000 / 60);
 
             if (gameState === 'PLAYING' && !isBossFight) {
                 for (let k in activeClasses) {
@@ -1423,8 +1430,11 @@
             if (isBossFight) {
                 let timeInBossFight = now - bossFightStartTime;
                 if (timeInBossFight > CONFIG.BOSS_ARENA_SHRINK_DELAY) {
-                    let maxMarginX = Math.max(5, (canvas.width - CONFIG.BOSS_ARENA_MIN_WIDTH) / 2);
-                    let maxMarginY = Math.max(5, (canvas.height - CONFIG.BOSS_ARENA_MIN_HEIGHT) / 2);
+                    // Arena schrumpft relativ zum Bildschirm, aber nie unter die absolute Mindestgröße
+                    let minW = Math.max(CONFIG.BOSS_ARENA_MIN_SIZE, canvas.width * CONFIG.BOSS_ARENA_MIN_RATIO);
+                    let minH = Math.max(CONFIG.BOSS_ARENA_MIN_SIZE, canvas.height * CONFIG.BOSS_ARENA_MIN_RATIO);
+                    let maxMarginX = Math.max(5, (canvas.width - minW) / 2);
+                    let maxMarginY = Math.max(5, (canvas.height - minH) / 2);
                     
                     if (arenaMarginX < maxMarginX) arenaMarginX += CONFIG.BOSS_ARENA_SHRINK_SPEED * dt;
                     if (arenaMarginY < maxMarginY) arenaMarginY += CONFIG.BOSS_ARENA_SHRINK_SPEED * dt;
@@ -1530,7 +1540,7 @@
 
             ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
             bgParticles.forEach(p => {
-                p.y += p.speed;
+                p.y += p.speed * frameScale;
                 if (p.y > canvas.height) { 
                     p.y = 0; 
                     p.x = Math.random() * canvas.width; 
@@ -1563,8 +1573,8 @@
 
             for (let i = empShockwaves.length - 1; i >= 0; i--) {
                 let wave = empShockwaves[i];
-                wave.radius += 20; 
-                wave.alpha -= 0.025; 
+                wave.radius += 20 * frameScale;
+                wave.alpha -= 0.025 * frameScale;
 
                 ctx.beginPath();
                 ctx.arc(cx, cy, wave.radius, 0, Math.PI * 2);
@@ -1658,9 +1668,13 @@
                     } else if (score >= nextUpgradeScore) {
                         showUpgradeMenu();
                     } else {
-                        if (frames % Math.max(CONFIG.SPAWN_RATE_MIN, Math.floor(spawnRate)) === 0) { 
+                        // Zeitbasiertes Spawnen: spawnRate ist in 60-FPS-Frames, hier in ms umgerechnet
+                        spawnTimer += dt;
+                        let spawnIntervalMs = Math.max(CONFIG.SPAWN_RATE_MIN, spawnRate) * (1000 / 60);
+                        if (spawnTimer >= spawnIntervalMs) {
+                            spawnTimer -= spawnIntervalMs;
                             enemies.push(new Enemy());
-                            if (spawnRate > CONFIG.SPAWN_RATE_MIN) spawnRate -= CONFIG.SPAWN_RATE_DECREASE; 
+                            if (spawnRate > CONFIG.SPAWN_RATE_MIN) spawnRate -= CONFIG.SPAWN_RATE_DECREASE;
                         }
 
                         for (let i = enemies.length - 1; i >= 0; i--) {
@@ -1746,7 +1760,6 @@
                         }
                     }
                 }
-                frames++;
             }
 
             animationId = requestAnimationFrame(animate);
@@ -1761,8 +1774,8 @@
             comboMultiplier = baseComboMultiplier;
             maxHealth = CONFIG.START_MAX_HEALTH; 
             health = maxHealth;
-            frames = 0;
-            spawnRate = CONFIG.SPAWN_RATE_START; 
+            spawnTimer = 0;
+            spawnRate = CONFIG.SPAWN_RATE_START;
             enemies = [];
             particles = [];
             empShockwaves = [];
