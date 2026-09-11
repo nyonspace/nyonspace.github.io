@@ -429,6 +429,7 @@
             <span style="color: #c0c0c0; text-shadow: 0 0 5px #c0c0c0;">● <strong>Silver (Rare):</strong></span> 2 Damage, 10 Points<br>
             <span style="color: #ffcc00; text-shadow: 0 0 5px #ffcc00;">● <strong>Gold (Extremely Rare):</strong></span> 3 Damage, 100 Points!
         </p>
+        <p>Enemies get faster and more frequent the longer you survive. <span style="color: #ff3333; text-shadow: 0 0 5px #ff3333;"><strong>⚠️ SWARMS</strong></span> attack every few seconds from the side your shield is <strong>not</strong> covering – a red marker flashes at the shield ring shortly before they arrive. Turn towards it!</p>
 
         <h3>4. COMBO SYSTEM</h3>
         <p>Every blocked anomaly grants <strong>+0.05x Combo Multiplier</strong>. The multiplier boosts your points massively. Taking core damage <strong>resets the combo</strong>!</p>
@@ -494,13 +495,27 @@
             COMBO_ADD_AUTO_EMP: 0.5,               // +Combo wenn Auto-EMP triggert
 
             // --- GEGNER SPAWN & SCHWIERIGKEIT ---
-            // Spawn-Werte sind in "60-FPS-Frames" angegeben (100 = ca. 1.67s), laufen aber zeitbasiert
-            SPAWN_RATE_START: 100,                 // Start-Abstand zwischen Gegner-Spawns (höher = langsamer)
-            SPAWN_RATE_MIN: 8,                     // Absolutes Minimum für die Spawnrate (Maximaler Spam)
-            SPAWN_RATE_DECREASE: 0.2,              // Wie viel schneller die Spawn-Rate wird pro Spawn
+            // Die Schwierigkeit hängt an der reinen Spielzeit (Menüs & Bossfights zählen nicht).
+            // Spawn-Abstand nähert sich exponentiell dem Minimum: nach TAU Sekunden sind 63% des Weges geschafft.
+            SPAWN_INTERVAL_START: 50,              // Abstand zwischen Spawns zu Beginn, in 60-FPS-Frames (~0.8s)
+            SPAWN_INTERVAL_MIN: 8,                 // Minimaler Abstand (Maximaler Spam)
+            SPAWN_RAMP_TAU: 80,                    // Sekunden bis 63% der Beschleunigung erreicht sind
             MAX_FRAME_DT: 100,                     // Max. ms pro Frame (verhindert Sprünge nach Tab-Wechsel)
-            ENEMY_SPEED_BASE: 1.2,                 // Startgeschwindigkeit der Kugeln
-            ENEMY_SPEED_SCALING: 0.0001,           // Wie stark die Kugeln mit dem Score schneller werden
+            ENEMY_SPEED_BASE: 2.2,                 // Startgeschwindigkeit der Kugeln (px pro 60-FPS-Frame)
+            ENEMY_SPEED_PER_MIN: 0.4,              // Speed-Zuwachs pro Spielminute
+            ENEMY_SPEED_MAX: 5.0,                  // Maximale Basis-Geschwindigkeit
+
+            // --- SCHWÄRME (BURSTS) ---
+            // Alle paar Sekunden kommt ein Schwarm von der Seite, die das Schild NICHT abdeckt
+            BURST_INTERVAL_START: 12,              // Sekunden zwischen Schwärmen zu Beginn
+            BURST_INTERVAL_MIN: 5,                 // Minimaler Abstand
+            BURST_RAMP_TAU: 120,                   // Sekunden-Zeitkonstante wie oben
+            BURST_COUNT_START: 3,                  // Gegner pro Schwarm zu Beginn
+            BURST_COUNT_PER_MIN: 1,                // +Gegner pro Schwarm je Spielminute
+            BURST_COUNT_MAX: 8,                    // Maximale Schwarmgröße
+            BURST_ARC: Math.PI / 4,                // Streuung des Schwarms (45°)
+            BURST_WARNING_MS: 700,                 // Vorwarnzeit mit Marker am Schild
+            BURST_STAGGER_PX: 45,                  // Abstand der Schwarm-Gegner hintereinander
 
             // --- GEGNER TYPEN ---
             ENEMY_NORMAL: { chance: 1.000, speedMult: 1.0, damage: 1, points: 1, radius: 8 }, 
@@ -562,7 +577,10 @@
         highScoreTextEl.innerText = highscore;
         let maxHealth = CONFIG.START_MAX_HEALTH;
         let health = maxHealth;
+        let playTime = 0;         // ms reine Spielzeit (ohne Menüs/Bossfights) – steuert die Schwierigkeit
         let spawnTimer = 0;       // ms seit dem letzten Spawn
+        let burstTimer = 0;       // ms seit dem letzten Schwarm
+        let pendingBurst = null;  // { angle, count, at } – Schwarm mit laufender Vorwarnung
         let frameScale = 1.0;     // 1.0 bei 60 FPS, 0.5 bei 120 FPS usw. (für framerate-unabhängige Bewegung)
         let animationId;
 
@@ -607,8 +625,6 @@
         let particles = [];
         let empShockwaves = []; 
         
-        let spawnRate = CONFIG.SPAWN_RATE_START; 
-        let enemyBaseSpeed = CONFIG.ENEMY_SPEED_BASE; 
 
         // Kern & Schild Setup
         const BASE_MAX_HEALTH = CONFIG.START_MAX_HEALTH; 
@@ -814,6 +830,68 @@
         window.addEventListener('mousemove', updateMousePos);
         window.addEventListener('touchmove', updateMousePos, {passive: false});
 
+        // --- SCHWIERIGKEITS-KURVE (alles abhängig von playTime) ---
+
+        // Exponentielle Annäherung von start an min mit Zeitkonstante tau (Sekunden)
+        function rampDown(start, min, tau) {
+            return min + (start - min) * Math.exp(-(playTime / 1000) / tau);
+        }
+
+        function getSpawnIntervalMs() {
+            return rampDown(CONFIG.SPAWN_INTERVAL_START, CONFIG.SPAWN_INTERVAL_MIN, CONFIG.SPAWN_RAMP_TAU) * (1000 / 60);
+        }
+
+        function getBurstIntervalMs() {
+            return rampDown(CONFIG.BURST_INTERVAL_START, CONFIG.BURST_INTERVAL_MIN, CONFIG.BURST_RAMP_TAU) * 1000;
+        }
+
+        function getBurstCount() {
+            let minutes = playTime / 60000;
+            return Math.min(CONFIG.BURST_COUNT_MAX, Math.floor(CONFIG.BURST_COUNT_START + minutes * CONFIG.BURST_COUNT_PER_MIN));
+        }
+
+        function getEnemyBaseSpeed() {
+            let minutes = playTime / 60000;
+            return Math.min(CONFIG.ENEMY_SPEED_MAX, CONFIG.ENEMY_SPEED_BASE + minutes * CONFIG.ENEMY_SPEED_PER_MIN) * globalSpeedMult;
+        }
+
+        // Abstand vom Zentrum bis zum Bildschirmrand in Richtung angle –
+        // damit Gegner immer sichtbar am Rand erscheinen und die Anflugzeit richtungsunabhängig ist
+        function edgeDistance(angle) {
+            let c = Math.abs(Math.cos(angle));
+            let s = Math.abs(Math.sin(angle));
+            let dx = c > 1e-6 ? (canvas.width / 2) / c : Infinity;
+            let dy = s > 1e-6 ? (canvas.height / 2) / s : Infinity;
+            return Math.min(dx, dy);
+        }
+
+        // Schwarm ankündigen: kommt aus einem Winkel, der mindestens 90° vom Schild entfernt ist
+        function scheduleBurst() {
+            let angle = shieldAngle + Math.PI + (Math.random() - 0.5) * Math.PI;
+            pendingBurst = { angle: angle, count: getBurstCount(), at: Date.now() + CONFIG.BURST_WARNING_MS };
+        }
+
+        function spawnBurst(burst) {
+            for (let i = 0; i < burst.count; i++) {
+                let angle = burst.angle + (Math.random() - 0.5) * CONFIG.BURST_ARC;
+                enemies.push(new Enemy(angle, i * CONFIG.BURST_STAGGER_PX));
+            }
+        }
+
+        function drawBurstWarning() {
+            if (!pendingBurst) return;
+            let remaining = Math.max(0, pendingBurst.at - Date.now()) / CONFIG.BURST_WARNING_MS;
+            let blink = Math.floor(Date.now() / 100) % 2 === 0;
+            ctx.beginPath();
+            ctx.arc(cx, cy, shieldRadius + 30, pendingBurst.angle - CONFIG.BURST_ARC / 2, pendingBurst.angle + CONFIG.BURST_ARC / 2);
+            ctx.strokeStyle = `rgba(255, 51, 51, ${blink ? 0.9 : 0.4})`;
+            ctx.lineWidth = 4 + (1 - remaining) * 6;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#ff3333';
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        }
+
         function checkShieldBlock(shieldAng, objAng) {
             let angleDiff = Math.abs(objAng - shieldAng);
             if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
@@ -953,7 +1031,8 @@
         }
 
         class Enemy {
-            constructor() {
+            // angle: Spawn-Richtung (zufällig wenn undefined); distOffset: zusätzlicher Abstand (für gestaffelte Schwärme)
+            constructor(angle, distOffset = 0) {
                 let typeRand = Math.random();
                 if (typeRand < CONFIG.ENEMY_GOLD.chance) {
                     this.type = 'gold';
@@ -978,13 +1057,12 @@
                     this.points = CONFIG.ENEMY_NORMAL.points;
                 }
 
-                let angle = Math.random() * Math.PI * 2;
-                let spawnDist = Math.max(canvas.width, canvas.height) / 2 + 50;
+                if (angle === undefined) angle = Math.random() * Math.PI * 2;
+                let spawnDist = edgeDistance(angle) + this.radius + distOffset;
                 this.x = cx + Math.cos(angle) * spawnDist;
                 this.y = cy + Math.sin(angle) * spawnDist;
-            
-                let currentBaseSpeed = (CONFIG.ENEMY_SPEED_BASE + (score * CONFIG.ENEMY_SPEED_SCALING)) * globalSpeedMult;
-                this.speed = currentBaseSpeed * this.speedMult;
+
+                this.speed = getEnemyBaseSpeed() * this.speedMult;
             
                 let dx = cx - this.x;
                 let dy = cy - this.y;
@@ -1180,7 +1258,7 @@
                 `;
                 card.onclick = () => {
                     c.apply();
-                    enemies = []; 
+                    enemies = []; pendingBurst = null;
                     ctx.fillStyle = 'rgba(255, 51, 51, 0.4)';
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
                     
@@ -1238,7 +1316,7 @@
                 upgradeStep = Math.floor(upgradeStep * CONFIG.UPGRADE_STEP_MULT) + CONFIG.UPGRADE_STEP_ADD; 
             }
 
-            enemies = [];
+            enemies = []; pendingBurst = null;
             
             ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1420,7 +1498,7 @@
                 for(let i=0; i<spawnCount; i++) {
                     bosses.push(new Boss(CONFIG.BOSS_HP_PER_BOSS, i, spawnCount)); 
                 }
-                enemies = []; 
+                enemies = []; pendingBurst = null;
                 
                 ctx.fillStyle = 'rgba(255, 51, 51, 0.5)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1668,14 +1746,30 @@
                     } else if (score >= nextUpgradeScore) {
                         showUpgradeMenu();
                     } else {
-                        // Zeitbasiertes Spawnen: spawnRate ist in 60-FPS-Frames, hier in ms umgerechnet
+                        playTime += dt;
+
+                        // Steter Strom einzelner Gegner (Abstand sinkt mit der Spielzeit)
                         spawnTimer += dt;
-                        let spawnIntervalMs = Math.max(CONFIG.SPAWN_RATE_MIN, spawnRate) * (1000 / 60);
+                        let spawnIntervalMs = getSpawnIntervalMs();
                         if (spawnTimer >= spawnIntervalMs) {
                             spawnTimer -= spawnIntervalMs;
                             enemies.push(new Enemy());
-                            if (spawnRate > CONFIG.SPAWN_RATE_MIN) spawnRate -= CONFIG.SPAWN_RATE_DECREASE;
                         }
+
+                        // Schwärme: erst Vorwarnung, dann Spawn
+                        if (pendingBurst) {
+                            if (now >= pendingBurst.at) {
+                                spawnBurst(pendingBurst);
+                                pendingBurst = null;
+                            }
+                        } else {
+                            burstTimer += dt;
+                            if (burstTimer >= getBurstIntervalMs()) {
+                                burstTimer = 0;
+                                scheduleBurst();
+                            }
+                        }
+                        drawBurstWarning();
 
                         for (let i = enemies.length - 1; i >= 0; i--) {
                             let enemy = enemies[i];
@@ -1774,8 +1868,10 @@
             comboMultiplier = baseComboMultiplier;
             maxHealth = CONFIG.START_MAX_HEALTH; 
             health = maxHealth;
-            spawnTimer = 0;
-            spawnRate = CONFIG.SPAWN_RATE_START;
+            playTime = 0;
+            spawnTimer = getSpawnIntervalMs(); // erster Gegner sofort
+            burstTimer = 0;
+            pendingBurst = null;
             enemies = [];
             particles = [];
             empShockwaves = [];
